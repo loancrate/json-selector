@@ -1,0 +1,10 @@
+{
+  "extends": "@tsconfig/node16/tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "dist"
+  },
+  "include": ["src"]
+}
