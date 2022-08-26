@@ -1,7 +1,8 @@
-/* eslint-disable no-console */
 import { accessWithJsonSelector, parseJsonSelector } from "./index";
 
 test("formatJsonSelector", () => {
+  const console = { log: jest.fn() };
+
   const obj = {
     foo: {
       bar: [
@@ -20,4 +21,6 @@ test("formatJsonSelector", () => {
   console.log(obj.foo.bar[0].value); // 2
   accessor.delete();
   console.log(obj.foo.bar[0].value); // undefined
+
+  expect(console.log.mock.calls).toEqual([[1], [1], [2], [undefined]]);
 });
