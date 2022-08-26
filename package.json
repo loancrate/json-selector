@@ -2,13 +2,32 @@
   "name": "@loancrate/json-selector",
   "version": "1.0.0",
   "description": "LoanCrate JSON Selectors",
+  "keywords": [
+    "json",
+    "path",
+    "selector"
+  ],
+  "homepage": "https://github.com/loancrate/json-selector#readme",
+  "bugs": {
+    "url": "https://github.com/loancrate/json-selector/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loancrate/json-selector.git"
+  },
+  "license": "ISC",
+  "author": "Trevor Robinson",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
     "lint": "eslint src --ext .ts",
     "generate-peggy": "./scripts/generate-peggy.sh",
     "prepare": "npm run generate-peggy && npm run build",
+    "prepublishOnly": "npm run test && npm run lint",
     "test": "jest"
   },
   "devDependencies": {
@@ -29,5 +48,8 @@
   "lint-staged": {
     "*.{ts,md}": "prettier --list-different",
     "*.ts": "eslint"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

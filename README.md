@@ -15,7 +15,7 @@ This should be unambiguous relative to the existing grammar and semantics.
 
 ## Installation
 
-```
+```sh
 npm add @loancrate/json-selector
 ```
 
