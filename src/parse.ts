@@ -1,4 +1,4 @@
-import { JsonSelector } from "./types";
+import { JsonSelector } from "./ast";
 import { parse } from "./__generated__/parser";
 
 export function parseJsonSelector(selectorExpression: string): JsonSelector {

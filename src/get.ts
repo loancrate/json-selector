@@ -1,5 +1,5 @@
 import { accessWithJsonSelector } from "./access";
-import { JsonSelector } from "./types";
+import { JsonSelector } from "./ast";
 
 export function getWithJsonSelector(
   selector: JsonSelector,
