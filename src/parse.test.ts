@@ -11,6 +11,15 @@ test("parseJsonSelector", () => {
     expression: { type: "identifier", id: "foo" },
     field: "bar",
   });
+  expect(parseJsonSelector("foo.bar.baz")).toStrictEqual<JsonSelector>({
+    type: "fieldAccess",
+    expression: {
+      type: "fieldAccess",
+      expression: { type: "identifier", id: "foo" },
+      field: "bar",
+    },
+    field: "baz",
+  });
   expect(parseJsonSelector("foo.bar['id'].value")).toStrictEqual<JsonSelector>({
     type: "fieldAccess",
     expression: {
