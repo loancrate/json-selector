@@ -1,5 +1,5 @@
-import { JsonSelector } from "./ast";
-import { parseJsonSelector } from "./parse";
+import { JsonSelector } from "../src/ast";
+import { parseJsonSelector } from "../src/parse";
 
 test("parseJsonSelector", () => {
   expect(parseJsonSelector("foo")).toStrictEqual<JsonSelector>({

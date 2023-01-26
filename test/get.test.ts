@@ -1,5 +1,5 @@
-import { getWithJsonSelector } from "./get";
-import { parseJsonSelector } from "./parse";
+import { getWithJsonSelector } from "../src/get";
+import { parseJsonSelector } from "../src/parse";
 
 test("getWithJsonSelector", () => {
   {

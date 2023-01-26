@@ -1,5 +1,5 @@
-import { evaluateJsonSelector } from "./evaluate";
-import { parseJsonSelector } from "./parse";
+import { evaluateJsonSelector } from "../src/evaluate";
+import { parseJsonSelector } from "../src/parse";
 
 test("evaluateJsonSelector", () => {
   {

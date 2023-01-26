@@ -1,4 +1,4 @@
-import { accessWithJsonSelector, parseJsonSelector } from "./index";
+import { accessWithJsonSelector, parseJsonSelector } from "../src/index";
 
 test("formatJsonSelector", () => {
   const console = { log: jest.fn() };

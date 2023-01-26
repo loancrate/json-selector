@@ -1,4 +1,4 @@
-import { formatJsonSelector } from "./format";
+import { formatJsonSelector } from "../src/format";
 
 test("formatJsonSelector", () => {
   expect(

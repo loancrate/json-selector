@@ -1,5 +1,5 @@
-import { parseJsonSelector } from "./parse";
-import { setWithJsonSelector } from "./set";
+import { parseJsonSelector } from "../src/parse";
+import { setWithJsonSelector } from "../src/set";
 
 test("setWithJsonSelector", () => {
   {
