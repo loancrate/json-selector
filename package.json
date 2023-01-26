@@ -18,12 +18,14 @@
   "license": "ISC",
   "author": "Trevor Robinson",
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
-  "main": "dist/index.js",
+  "main": "dist/json-selector.umd.js",
+  "module": "dist/json-selector.esm.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rm -rf dist && tsc --project tsconfig.build.json",
+    "build": "rm -rf dist && rollup -c rollup.config.mjs",
     "lint": "eslint src --ext .ts",
     "lint:ci": "eslint src --ext .ts --max-warnings 0 --format junit --output-file test-results/eslint/junit.xml",
     "generate-peggy": "./scripts/generate-peggy.sh",
@@ -36,6 +38,9 @@
     "fast-deep-equal": "^3.1.3"
   },
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^24.0.1",
+    "@rollup/plugin-node-resolve": "^15.0.1",
+    "@rollup/plugin-typescript": "^11.0.0",
     "@tsconfig/node16": "^1.0.3",
     "@types/jest": "^29.4.0",
     "@types/node": "^18.11.18",
@@ -49,6 +54,7 @@
     "lint-staged": "^13.1.0",
     "peggy": "^2.0.1",
     "prettier": "^2.8.3",
+    "rollup": "^3.10.1",
     "ts-jest": "^29.0.5",
     "type-fest": "^3.5.3",
     "typescript": "^4.9.4"
