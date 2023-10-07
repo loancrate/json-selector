@@ -97,7 +97,15 @@ projection =
   / ws "[" ws @slice ws "]"
 
 slice = start:number? ws ":" ws end:number? ws ":"? ws step:number?
-{ return (expression) => ({ type: "slice", expression, start, end, step }); }
+{
+  return (expression) => ({
+    type: "slice",
+    expression,
+    start: start ?? undefined,
+    end: end ?? undefined,
+    step: step ?? undefined,
+  });
+}
 
 index_expression = lhs:index_lhs rhs:index_rhs* { return reduceProjection(lhs, rhs); }
 
@@ -117,6 +125,7 @@ member_expression = lhs:primary_expression rhs:dot_rhs* { return reduceProjectio
 primary_expression =
     id:identifier { return { type: "identifier", id }; }
   / "@" { return { type: "current" }; }
+  / "$" { return { type: "root" }; }
   / literal
   / value:raw_string { return { type: "literal", value }; }
   / "(" @selector ")"

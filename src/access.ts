@@ -23,18 +23,18 @@ import { visitJsonSelector } from "./visitor";
 
 export interface UnboundAccessor {
   readonly selector: JsonSelector;
-  isValidContext(context: unknown): boolean;
-  get(context: unknown): unknown;
-  set(context: unknown, value: unknown): void;
-  delete(context: unknown): void;
+  isValidContext(context: unknown, rootContext?: unknown): boolean;
+  get(context: unknown, rootContext?: unknown): unknown;
+  set(value: unknown, context: unknown, rootContext?: unknown): void;
+  delete(context: unknown, rootContext?: unknown): void;
 }
 
 abstract class BaseAccessor implements UnboundAccessor {
   constructor(readonly selector: JsonSelector) {}
-  abstract isValidContext(context: unknown): boolean;
-  abstract get(context: unknown): unknown;
-  abstract set(context: unknown, value: unknown): void;
-  abstract delete(context: unknown): void;
+  abstract isValidContext(context: unknown, rootContext?: unknown): boolean;
+  abstract get(context: unknown, rootContext?: unknown): unknown;
+  abstract set(value: unknown, context: unknown, rootContext?: unknown): void;
+  abstract delete(context: unknown, rootContext?: unknown): void;
 }
 
 abstract class ReadOnlyAccessor extends BaseAccessor {
@@ -74,6 +74,15 @@ class ContextAccessor extends ReadOnlyAccessor {
     return context;
   }
 }
+class RootContextAccessor extends ReadOnlyAccessor {
+  constructor() {
+    super({ type: "root" });
+  }
+
+  get(context: unknown, rootContext = context): unknown {
+    return rootContext;
+  }
+}
 
 export function makeJsonSelectorAccessor(
   selector: JsonSelector
@@ -83,6 +92,9 @@ export function makeJsonSelectorAccessor(
     {
       current() {
         return new ContextAccessor();
+      },
+      root() {
+        return new RootContextAccessor();
       },
       literal(selector) {
         return new ConstantAccessor(selector, selector.value);
@@ -99,7 +111,7 @@ export function makeJsonSelectorAccessor(
           get(context: unknown) {
             return getField(context, id);
           }
-          set(context: unknown, value: unknown) {
+          set(value: unknown, context: unknown) {
             if (isObject(context)) {
               context[id] = value;
             }
@@ -119,20 +131,20 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          isValidContext(context: unknown) {
-            return isObject(base.get(context));
+          isValidContext(context: unknown, rootContext = context) {
+            return isObject(base.get(context, rootContext));
           }
-          get(context: unknown) {
-            return getField(base.get(context), field);
+          get(context: unknown, rootContext = context) {
+            return getField(base.get(context, rootContext), field);
           }
-          set(context: unknown, value: unknown) {
-            const obj = base.get(context);
+          set(value: unknown, context: unknown, rootContext = context) {
+            const obj = base.get(context, rootContext);
             if (isObject(obj)) {
               obj[field] = value;
             }
           }
-          delete(context: unknown) {
-            const obj = base.get(context);
+          delete(context: unknown, rootContext = context) {
+            const obj = base.get(context, rootContext);
             if (isObject(obj)) {
               delete obj[field];
             }
@@ -147,20 +159,20 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          isValidContext(context: unknown) {
-            return isArray(base.get(context));
+          isValidContext(context: unknown, rootContext = context) {
+            return isArray(base.get(context, rootContext));
           }
-          get(context: unknown) {
-            return getIndex(base.get(context), index);
+          get(context: unknown, rootContext = context) {
+            return getIndex(base.get(context, rootContext), index);
           }
-          set(context: unknown, value: unknown) {
-            const arr = base.get(context);
+          set(value: unknown, context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               arr[index] = value;
             }
           }
-          delete(context: unknown) {
-            const arr = base.get(context);
+          delete(context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               arr.splice(index, 1);
             }
@@ -175,14 +187,14 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          isValidContext(context: unknown) {
-            return isArray(base.get(context));
+          isValidContext(context: unknown, rootContext = context) {
+            return isArray(base.get(context, rootContext));
           }
-          get(context: unknown) {
-            return findId(base.get(context), id);
+          get(context: unknown, rootContext = context) {
+            return findId(base.get(context, rootContext), id);
           }
-          set(context: unknown, value: unknown) {
-            const arr = base.get(context);
+          set(value: unknown, context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               const index = findIdIndex(arr, id);
               if (index >= 0) {
@@ -190,8 +202,8 @@ export function makeJsonSelectorAccessor(
               }
             }
           }
-          delete(context: unknown) {
-            const arr = base.get(context);
+          delete(context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               const index = findIdIndex(arr, id);
               if (index >= 0) {
@@ -210,30 +222,30 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          isValidContext(context: unknown) {
-            return isArray(base.get(context));
+          isValidContext(context: unknown, rootContext = context) {
+            return isArray(base.get(context, rootContext));
           }
-          get(context: unknown) {
-            return project(base.get(context), projection);
+          get(context: unknown, rootContext = context) {
+            return project(base.get(context, rootContext), projection, context);
           }
-          set(context: unknown, value: unknown) {
-            const arr = base.get(context);
+          set(value: unknown, context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               if (proj) {
                 for (const element of arr) {
-                  proj.set(element, value);
+                  proj.set(value, element, rootContext);
                 }
               } else {
                 replaceArray(arr, asArray(value));
               }
             }
           }
-          delete(context: unknown) {
-            const arr = base.get(context);
+          delete(context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               if (proj) {
                 for (const element of arr) {
-                  proj.delete(element);
+                  proj.delete(element, rootContext);
                 }
               } else {
                 arr.length = 0;
@@ -250,25 +262,27 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          isValidContext(context: unknown) {
-            return isArray(base.get(context));
+          isValidContext(context: unknown, rootContext = context) {
+            return isArray(base.get(context, rootContext));
           }
-          get(context: unknown) {
-            return filter(base.get(context), condition);
+          get(context: unknown, rootContext = context) {
+            return filter(base.get(context, rootContext), condition, context);
           }
-          set(context: unknown, value: unknown) {
-            const arr = base.get(context);
+          set(value: unknown, context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               replaceArray(
                 arr,
-                invertedFilter(arr, condition).concat(asArray(value))
+                invertedFilter(arr, condition, rootContext).concat(
+                  asArray(value)
+                )
               );
             }
           }
-          delete(context: unknown) {
-            const arr = base.get(context);
+          delete(context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
-              replaceArray(arr, invertedFilter(arr, condition));
+              replaceArray(arr, invertedFilter(arr, condition, rootContext));
             }
           }
         };
@@ -281,14 +295,14 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          isValidContext(context: unknown) {
-            return isArray(base.get(context));
+          isValidContext(context: unknown, rootContext = context) {
+            return isArray(base.get(context, rootContext));
           }
-          get(context: unknown) {
-            return slice(base.get(context), start, end, step);
+          get(context: unknown, rootContext = context) {
+            return slice(base.get(context, rootContext), start, end, step);
           }
-          set(context: unknown, value: unknown) {
-            const arr = base.get(context);
+          set(value: unknown, context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               replaceArray(
                 arr,
@@ -296,8 +310,8 @@ export function makeJsonSelectorAccessor(
               );
             }
           }
-          delete(context: unknown) {
-            const arr = base.get(context);
+          delete(context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               replaceArray(arr, invertedSlice(arr, start, end, step));
             }
@@ -312,20 +326,20 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          isValidContext(context: unknown) {
-            return isArray(base.get(context));
+          isValidContext(context: unknown, rootContext = context) {
+            return isArray(base.get(context, rootContext));
           }
-          get(context: unknown) {
-            return flatten(base.get(context));
+          get(context: unknown, rootContext = context) {
+            return flatten(base.get(context, rootContext));
           }
-          set(context: unknown, value: unknown) {
-            const arr = base.get(context);
+          set(value: unknown, context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               replaceArray(arr, asArray(value));
             }
           }
-          delete(context: unknown) {
-            const arr = base.get(context);
+          delete(context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               arr.length = 0;
             }
@@ -340,8 +354,8 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          get(context: unknown) {
-            return isFalseOrEmpty(base.get(context));
+          get(context: unknown, rootContext = context) {
+            return isFalseOrEmpty(base.get(context, rootContext));
           }
         };
         return new Accessor();
@@ -354,9 +368,9 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          get(context: unknown) {
-            const lv = la.get(context);
-            const rv = ra.get(context);
+          get(context: unknown, rootContext = context) {
+            const lv = la.get(context, rootContext);
+            const rv = ra.get(context, rootContext);
             return compare(lv, rv, operator);
           }
         };
@@ -370,9 +384,9 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          get(context: unknown) {
-            const lv = la.get(context);
-            return isFalseOrEmpty(lv) ? lv : ra.get(context);
+          get(context: unknown, rootContext = context) {
+            const lv = la.get(context, rootContext);
+            return isFalseOrEmpty(lv) ? lv : ra.get(context, rootContext);
           }
         };
         return new Accessor();
@@ -385,9 +399,9 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          get(context: unknown) {
-            const lv = la.get(context);
-            return !isFalseOrEmpty(lv) ? lv : ra.get(context);
+          get(context: unknown, rootContext = context) {
+            const lv = la.get(context, rootContext);
+            return !isFalseOrEmpty(lv) ? lv : ra.get(context, rootContext);
           }
         };
         return new Accessor();
@@ -400,17 +414,17 @@ export function makeJsonSelectorAccessor(
           constructor() {
             super(selector);
           }
-          isValidContext(context: unknown) {
-            return ra.isValidContext(la.get(context));
+          isValidContext(context: unknown, rootContext = context) {
+            return ra.isValidContext(la.get(context, rootContext), rootContext);
           }
-          get(context: unknown) {
-            return ra.get(la.get(context));
+          get(context: unknown, rootContext = context) {
+            return ra.get(la.get(context, rootContext), rootContext);
           }
-          set(context: unknown, value: unknown) {
-            ra.set(la.get(context), value);
+          set(value: unknown, context: unknown, rootContext = context) {
+            ra.set(value, la.get(context, rootContext), rootContext);
           }
-          delete(context: unknown) {
-            ra.delete(la.get(context));
+          delete(context: unknown, rootContext = context) {
+            ra.delete(la.get(context, rootContext), rootContext);
           }
         };
         return new Accessor();
@@ -431,31 +445,37 @@ export interface Accessor<T> {
 
 export function bindJsonSelectorAccessor(
   unbound: UnboundAccessor,
-  context: unknown
+  context: unknown,
+  rootContext = context
 ): Accessor<unknown> {
   const { selector } = unbound;
-  const valid = unbound.isValidContext(context);
+  const valid = unbound.isValidContext(context, rootContext);
   return {
     selector,
     valid,
     path: formatJsonSelector(selector),
     get() {
-      return unbound.get(context);
+      return unbound.get(context, rootContext);
     },
-    set(v: unknown) {
-      unbound.set(context, v);
+    set(value: unknown) {
+      unbound.set(value, context, rootContext);
     },
     delete() {
-      unbound.delete(context);
+      unbound.delete(context, rootContext);
     },
   };
 }
 
 export function accessWithJsonSelector(
   selector: JsonSelector,
-  context: unknown
+  context: unknown,
+  rootContext = context
 ): Accessor<unknown> {
-  return bindJsonSelectorAccessor(makeJsonSelectorAccessor(selector), context);
+  return bindJsonSelectorAccessor(
+    makeJsonSelectorAccessor(selector),
+    context,
+    rootContext
+  );
 }
 
 function replaceArray(
@@ -467,9 +487,13 @@ function replaceArray(
   return target;
 }
 
-function invertedFilter(value: unknown[], condition: JsonSelector): unknown[] {
+function invertedFilter(
+  value: unknown[],
+  condition: JsonSelector,
+  rootContext: unknown
+): unknown[] {
   return value.filter((e) =>
-    isFalseOrEmpty(evaluateJsonSelector(condition, e))
+    isFalseOrEmpty(evaluateJsonSelector(condition, e, rootContext))
   );
 }
 
