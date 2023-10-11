@@ -6,6 +6,10 @@ export interface JsonSelectorCurrent {
   type: "current";
 }
 
+export interface JsonSelectorRoot {
+  type: "root";
+}
+
 export interface JsonSelectorLiteral {
   type: "literal";
   value: JsonValue;
@@ -93,6 +97,7 @@ export interface JsonSelectorPipe {
 
 export type JsonSelector =
   | JsonSelectorCurrent
+  | JsonSelectorRoot
   | JsonSelectorLiteral
   | JsonSelectorIdentifier
   | JsonSelectorFieldAccess

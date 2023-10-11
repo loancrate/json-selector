@@ -14,11 +14,13 @@ import {
   JsonSelectorOr,
   JsonSelectorPipe,
   JsonSelectorProject,
+  JsonSelectorRoot,
   JsonSelectorSlice,
 } from "./ast";
 
 export interface Visitor<R, C> {
   current(node: JsonSelectorCurrent, context: C): R;
+  root(node: JsonSelectorRoot, context: C): R;
   literal(node: JsonSelectorLiteral, context: C): R;
   identifier(node: JsonSelectorIdentifier, context: C): R;
   fieldAccess(node: JsonSelectorFieldAccess, context: C): R;
@@ -43,6 +45,8 @@ export function visitJsonSelector<R, C>(
   switch (selector.type) {
     case "current":
       return visitor.current(selector, context);
+    case "root":
+      return visitor.root(selector, context);
     case "literal":
       return visitor.literal(selector, context);
     case "identifier":

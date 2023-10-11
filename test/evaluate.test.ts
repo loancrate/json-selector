@@ -1,8 +1,8 @@
 import { evaluateJsonSelector } from "../src/evaluate";
 import { parseJsonSelector } from "../src/parse";
 
-test("evaluateJsonSelector", () => {
-  {
+describe("evaluateJsonSelector", () => {
+  test("reservations", () => {
     const obj = {
       reservations: [
         {
@@ -20,5 +20,10 @@ test("evaluateJsonSelector", () => {
     expect(evaluateJsonSelector(selector, obj)).toStrictEqual([
       [{ foo: 2, bar: 1 }],
     ]);
-  }
+
+    const selector2 = parseJsonSelector("reservations[*]");
+    expect(evaluateJsonSelector(selector2, obj)).toStrictEqual(
+      obj.reservations
+    );
+  });
 });

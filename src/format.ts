@@ -63,6 +63,9 @@ export function formatJsonSelector(
       current() {
         return !options.currentImplied ? "@" : "";
       },
+      root() {
+        return "$";
+      },
       literal({ value }) {
         return formatLiteral(value);
       },

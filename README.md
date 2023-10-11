@@ -1,7 +1,10 @@
 # LoanCrate JSON Selectors
 
 LoanCrate JSON Selectors are based on a subset of [JMESPath](https://jmespath.org)
-with a shorthand/extension for selecting an object from an array based on ID.
+with the following additions:
+
+- A shorthand/extension for selecting an object from an array based on ID.
+- A root-node expression, as added in the [JMESPath Community Edition](https://jmespath.site/main/#spec-root-node).
 
 Currently, the subset includes everything except [functions](https://jmespath.org/specification.html#functions-expressions),
 object projections ([`*` wildcard](https://jmespath.org/specification.html#wildcard-expressions) not within brackets),
@@ -15,7 +18,7 @@ of the desired object from an array of objects.
 Formally, `x['y']` would be equivalent to `x[?id == 'y'] | [0]` in JMESPath.
 This should be unambiguous relative to the existing grammar and semantics.
 
-In addition to the extension above, this library offers the following features compared to [jmespath.js](https://github.com/jmespath/jmespath.js):
+In addition to the extensions above, this library offers the following features compared to [jmespath.js](https://github.com/jmespath/jmespath.js):
 
 - Written using Typescript and [PEG.js](https://pegjs.org/) for clarity and correctness
 - Type definitions for the abstract syntax tree (AST) produced by the parser

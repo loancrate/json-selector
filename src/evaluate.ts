@@ -5,13 +5,17 @@ import { visitJsonSelector } from "./visitor";
 
 export function evaluateJsonSelector(
   selector: JsonSelector,
-  context: unknown
+  context: unknown,
+  rootContext = context
 ): unknown {
   return visitJsonSelector<unknown, unknown>(
     selector,
     {
       current() {
         return context;
+      },
+      root() {
+        return rootContext;
       },
       literal({ value }) {
         return value;
@@ -20,49 +24,76 @@ export function evaluateJsonSelector(
         return getField(context, id);
       },
       fieldAccess({ expression, field }) {
-        return getField(evaluateJsonSelector(expression, context), field);
+        return getField(
+          evaluateJsonSelector(expression, context, rootContext),
+          field
+        );
       },
       indexAccess({ expression, index }) {
-        return getIndex(evaluateJsonSelector(expression, context), index);
+        return getIndex(
+          evaluateJsonSelector(expression, context, rootContext),
+          index
+        );
       },
       idAccess({ expression, id }) {
-        return findId(evaluateJsonSelector(expression, context), id);
+        return findId(
+          evaluateJsonSelector(expression, context, rootContext),
+          id
+        );
       },
       project({ expression, projection }) {
-        return project(evaluateJsonSelector(expression, context), projection);
+        return project(
+          evaluateJsonSelector(expression, context, rootContext),
+          projection,
+          rootContext
+        );
       },
       filter({ expression, condition }) {
-        return filter(evaluateJsonSelector(expression, context), condition);
+        return filter(
+          evaluateJsonSelector(expression, context, rootContext),
+          condition,
+          rootContext
+        );
       },
       slice({ expression, start, end, step }) {
         return slice(
-          evaluateJsonSelector(expression, context),
+          evaluateJsonSelector(expression, context, rootContext),
           start,
           end,
           step
         );
       },
       flatten({ expression }) {
-        return flatten(evaluateJsonSelector(expression, context));
+        return flatten(evaluateJsonSelector(expression, context, rootContext));
       },
       not({ expression }) {
-        return isFalseOrEmpty(evaluateJsonSelector(expression, context));
+        return isFalseOrEmpty(
+          evaluateJsonSelector(expression, context, rootContext)
+        );
       },
       compare({ lhs, rhs, operator }) {
-        const lv = evaluateJsonSelector(lhs, context);
-        const rv = evaluateJsonSelector(rhs, context);
+        const lv = evaluateJsonSelector(lhs, context, rootContext);
+        const rv = evaluateJsonSelector(rhs, context, rootContext);
         return compare(lv, rv, operator);
       },
       and({ lhs, rhs }) {
-        const lv = evaluateJsonSelector(lhs, context);
-        return isFalseOrEmpty(lv) ? lv : evaluateJsonSelector(rhs, context);
+        const lv = evaluateJsonSelector(lhs, context, rootContext);
+        return isFalseOrEmpty(lv)
+          ? lv
+          : evaluateJsonSelector(rhs, context, rootContext);
       },
       or({ lhs, rhs }) {
-        const lv = evaluateJsonSelector(lhs, context);
-        return !isFalseOrEmpty(lv) ? lv : evaluateJsonSelector(rhs, context);
+        const lv = evaluateJsonSelector(lhs, context, rootContext);
+        return !isFalseOrEmpty(lv)
+          ? lv
+          : evaluateJsonSelector(rhs, context, rootContext);
       },
       pipe({ lhs, rhs }) {
-        return evaluateJsonSelector(rhs, evaluateJsonSelector(lhs, context));
+        return evaluateJsonSelector(
+          rhs,
+          evaluateJsonSelector(lhs, context, rootContext),
+          rootContext
+        );
       },
     },
     context
@@ -71,15 +102,18 @@ export function evaluateJsonSelector(
 
 export function project(
   value: unknown[],
-  projection: JsonSelector | undefined
+  projection: JsonSelector | undefined,
+  rootContext: unknown
 ): unknown[];
 export function project(
   value: unknown,
-  projection: JsonSelector | undefined
+  projection: JsonSelector | undefined,
+  rootContext: unknown
 ): unknown[] | null;
 export function project(
   value: unknown,
-  projection: JsonSelector | undefined
+  projection: JsonSelector | undefined,
+  rootContext: unknown
 ): unknown[] | null {
   if (!isArray(value)) {
     return null;
@@ -88,25 +122,31 @@ export function project(
     return value;
   }
   const result = value
-    .map((e) => evaluateJsonSelector(projection, e))
+    .map((e) => evaluateJsonSelector(projection, e, rootContext))
     .filter((e) => e != null);
   return result;
 }
 
-export function filter(value: unknown[], condition: JsonSelector): unknown[];
+export function filter(
+  value: unknown[],
+  condition: JsonSelector,
+  rootContext: unknown
+): unknown[];
 export function filter(
   value: unknown,
-  condition: JsonSelector
+  condition: JsonSelector,
+  rootContext: unknown
 ): unknown[] | null;
 export function filter(
   value: unknown,
-  condition: JsonSelector
+  condition: JsonSelector,
+  rootContext: unknown
 ): unknown[] | null {
   if (!isArray(value)) {
     return null;
   }
   const result = value.filter(
-    (e) => !isFalseOrEmpty(evaluateJsonSelector(condition, e))
+    (e) => !isFalseOrEmpty(evaluateJsonSelector(condition, e, rootContext))
   );
   return result;
 }
