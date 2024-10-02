@@ -11,6 +11,20 @@ test("parseJsonSelector", () => {
     expression: { type: "identifier", id: "foo" },
     field: "bar",
   });
+  expect(parseJsonSelector("foo.bar.baz")).toStrictEqual<JsonSelector>({
+    type: "fieldAccess",
+    expression: {
+      type: "fieldAccess",
+      expression: { type: "identifier", id: "foo" },
+      field: "bar",
+    },
+    field: "baz",
+  });
+  expect(parseJsonSelector("foo[*]")).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: { type: "identifier", id: "foo" },
+    projection: { type: "current" },
+  });
   expect(parseJsonSelector("foo[*].bar")).toStrictEqual<JsonSelector>({
     type: "project",
     expression: { type: "identifier", id: "foo" },
@@ -18,6 +32,58 @@ test("parseJsonSelector", () => {
       type: "fieldAccess",
       expression: { type: "current" },
       field: "bar",
+    },
+  });
+  expect(parseJsonSelector("foo[*].bar.baz")).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: { type: "identifier", id: "foo" },
+    projection: {
+      type: "fieldAccess",
+      expression: {
+        type: "fieldAccess",
+        expression: { type: "current" },
+        field: "bar",
+      },
+      field: "baz",
+    },
+  });
+  expect(parseJsonSelector("foo.bar[*]")).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: {
+      type: "fieldAccess",
+      expression: { type: "identifier", id: "foo" },
+      field: "bar",
+    },
+    projection: { type: "current" },
+  });
+  expect(parseJsonSelector("foo[*].bar[*]")).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: { type: "identifier", id: "foo" },
+    projection: {
+      type: "project",
+      expression: {
+        type: "fieldAccess",
+        expression: { type: "current" },
+        field: "bar",
+      },
+      projection: { type: "current" },
+    },
+  });
+  expect(parseJsonSelector("foo[*].bar[*].baz")).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: { type: "identifier", id: "foo" },
+    projection: {
+      type: "project",
+      expression: {
+        type: "fieldAccess",
+        expression: { type: "current" },
+        field: "bar",
+      },
+      projection: {
+        type: "fieldAccess",
+        expression: { type: "current" },
+        field: "baz",
+      },
     },
   });
   expect(parseJsonSelector("!foo.bar.baz")).toStrictEqual<JsonSelector>({
@@ -45,11 +111,101 @@ test("parseJsonSelector", () => {
     },
     field: "value",
   });
+  expect(
+    parseJsonSelector("foo[*].bar['id'].value"),
+  ).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: { type: "identifier", id: "foo" },
+    projection: {
+      type: "fieldAccess",
+      expression: {
+        type: "idAccess",
+        expression: {
+          type: "fieldAccess",
+          expression: { type: "current" },
+          field: "bar",
+        },
+        id: "id",
+      },
+      field: "value",
+    },
+  });
   expect(parseJsonSelector("foo[]")).toStrictEqual<JsonSelector>({
     type: "flatten",
+    expression: { type: "identifier", id: "foo" },
+  });
+  expect(parseJsonSelector("foo[].bar")).toStrictEqual<JsonSelector>({
+    type: "project",
     expression: {
-      type: "identifier",
-      id: "foo",
+      type: "flatten",
+      expression: { type: "identifier", id: "foo" },
+    },
+    projection: {
+      type: "fieldAccess",
+      expression: { type: "current" },
+      field: "bar",
+    },
+  });
+  expect(parseJsonSelector("foo[].bar.baz")).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: {
+      type: "flatten",
+      expression: { type: "identifier", id: "foo" },
+    },
+    projection: {
+      type: "fieldAccess",
+      expression: {
+        type: "fieldAccess",
+        expression: { type: "current" },
+        field: "bar",
+      },
+      field: "baz",
+    },
+  });
+  expect(parseJsonSelector("foo.bar[]")).toStrictEqual<JsonSelector>({
+    type: "flatten",
+    expression: {
+      type: "fieldAccess",
+      expression: { type: "identifier", id: "foo" },
+      field: "bar",
+    },
+  });
+  expect(parseJsonSelector("foo[].bar[]")).toStrictEqual<JsonSelector>({
+    type: "flatten",
+    expression: {
+      type: "project",
+      expression: {
+        type: "flatten",
+        expression: { type: "identifier", id: "foo" },
+      },
+      projection: {
+        type: "fieldAccess",
+        expression: { type: "current" },
+        field: "bar",
+      },
+    },
+  });
+  expect(parseJsonSelector("foo[].bar[].baz")).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: {
+      type: "flatten",
+      expression: {
+        type: "project",
+        expression: {
+          type: "flatten",
+          expression: { type: "identifier", id: "foo" },
+        },
+        projection: {
+          type: "fieldAccess",
+          expression: { type: "current" },
+          field: "bar",
+        },
+      },
+    },
+    projection: {
+      type: "fieldAccess",
+      expression: { type: "current" },
+      field: "baz",
     },
   });
   expect(parseJsonSelector("foo[?bar == `1`]")).toStrictEqual<JsonSelector>({
@@ -79,7 +235,7 @@ test("parseJsonSelector", () => {
     step: undefined,
   });
   expect(
-    parseJsonSelector("foo[].bar[?baz.kind == `primary`][].baz | [0]")
+    parseJsonSelector("foo[].bar[?baz.kind == `primary`][].baz | [0]"),
   ).toStrictEqual<JsonSelector>({
     type: "pipe",
     lhs: {
