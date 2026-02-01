@@ -26,7 +26,7 @@ const config = [
   },
   {
     input: "src/index.ts",
-    external: ["fast-deep-equal"],
+    external: ["fast-deep-equal", "moo"],
     output: [
       {
         file: "dist/json-selector.esm.js",

@@ -21,6 +21,13 @@ export default [
       },
     },
     rules: {
+      "@typescript-eslint/explicit-module-boundary-types": "warn",
+      "@typescript-eslint/no-empty-object-type": "off",
+      "@typescript-eslint/no-unnecessary-type-assertion": "warn",
+      "@typescript-eslint/no-non-null-assertion": "warn",
+      "@typescript-eslint/no-unsafe-call": "warn",
+      "@typescript-eslint/no-unnecessary-type-constraint": "warn",
+      "@typescript-eslint/no-redundant-type-constituents": "warn",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {

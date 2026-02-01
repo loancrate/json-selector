@@ -20,7 +20,7 @@ This should be unambiguous relative to the existing grammar and semantics.
 
 In addition to the extensions above, this library offers the following features compared to [jmespath.js](https://github.com/jmespath/jmespath.js):
 
-- Written using Typescript and [Peggy](https://peggyjs.org/) for clarity and correctness
+- Written using TypeScript with hand-written recursive descent parser
 - Type definitions for the abstract syntax tree (AST) produced by the parser
 - Typed visitor pattern for accessing AST nodes
 - Formatting of an AST back into an expression string
