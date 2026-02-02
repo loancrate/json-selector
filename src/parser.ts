@@ -11,6 +11,59 @@ const ROOT_NODE: Readonly<JsonSelectorRoot> = Object.freeze({
   type: "root",
 });
 
+// Binding power constants (higher = tighter binding)
+const BP_PIPE = 1;
+const BP_OR = 3;
+const BP_AND = 4;
+const BP_COMPARE = 7;
+const BP_FLATTEN = 9;
+const BP_FILTER = 21;
+const BP_DOT = 40;
+const BP_NOT = 45;
+const BP_BRACKET = 55;
+
+// Projection stop threshold: operators below this terminate projections
+// Separates terminators (pipe, or, and, comparisons) from continuators (dot, brackets)
+const PROJECTION_STOP_BP = 10;
+
+// Binding power table (higher = tighter binding)
+// Use array indexed by TokenType for fast lookup
+const TOKEN_BP: number[] = (() => {
+  const bp: number[] = new Array<number>(TOKEN_LIMIT).fill(0);
+
+  // Terminators (lowest precedence) - already 0
+  // TokenType.RPAREN, RBRACKET, RBRACE, COMMA - all 0
+
+  // Binary operators (low to high)
+  bp[TokenType.PIPE] = BP_PIPE; // |
+  bp[TokenType.OR] = BP_OR; // ||
+  bp[TokenType.AND] = BP_AND; // &&
+
+  // Comparison operators (all same precedence - non-associative, cannot chain)
+  bp[TokenType.EQ] = BP_COMPARE; // ==
+  bp[TokenType.NEQ] = BP_COMPARE; // !=
+  bp[TokenType.LT] = BP_COMPARE; // <
+  bp[TokenType.LTE] = BP_COMPARE; // <=
+  bp[TokenType.GT] = BP_COMPARE; // >
+  bp[TokenType.GTE] = BP_COMPARE; // >=
+
+  // Projection operators
+  // flatten has lower bp (9) than star/filter to allow chaining: foo[*][] or foo[?x][].bar
+  bp[TokenType.FLATTEN_BRACKET] = BP_FLATTEN; // []
+  bp[TokenType.FILTER_BRACKET] = BP_FILTER; // [?...]
+
+  // Postfix operators (high precedence)
+  bp[TokenType.DOT] = BP_DOT; // .
+
+  // Prefix operators
+  bp[TokenType.NOT] = BP_NOT; // !
+
+  // Bracket access (highest)
+  bp[TokenType.LBRACKET] = BP_BRACKET; // [n], ['id'], [n:], etc.
+
+  return bp;
+})();
+
 /**
  * Pratt Parser for JSON Selectors
  *
@@ -21,59 +74,6 @@ const ROOT_NODE: Readonly<JsonSelectorRoot> = Object.freeze({
  */
 export class Parser {
   private readonly lexer: Lexer;
-
-  // Named binding power constants (higher = tighter binding)
-  private static readonly BP_PIPE = 1;
-  private static readonly BP_OR = 3;
-  private static readonly BP_AND = 4;
-  private static readonly BP_COMPARE = 7;
-  private static readonly BP_FLATTEN = 9;
-  private static readonly BP_FILTER = 21;
-  private static readonly BP_DOT = 40;
-  private static readonly BP_NOT = 45;
-  private static readonly BP_BRACKET = 55;
-
-  // Projection stop threshold: operators below this terminate projections
-  // Separates terminators (pipe, or, and, comparisons) from continuators (dot, brackets)
-  private static readonly PROJECTION_STOP_BP = 10;
-
-  // Binding power table (higher = tighter binding)
-  // Use array indexed by TokenType for fast lookup
-  private static readonly TOKEN_BP: number[] = (() => {
-    const bp: number[] = new Array<number>(TOKEN_LIMIT).fill(0);
-
-    // Terminators (lowest precedence) - already 0
-    // TokenType.RPAREN, RBRACKET, RBRACE, COMMA - all 0
-
-    // Binary operators (low to high)
-    bp[TokenType.PIPE] = Parser.BP_PIPE; // |
-    bp[TokenType.OR] = Parser.BP_OR; // ||
-    bp[TokenType.AND] = Parser.BP_AND; // &&
-
-    // Comparison operators (all same precedence - non-associative, cannot chain)
-    bp[TokenType.EQ] = Parser.BP_COMPARE; // ==
-    bp[TokenType.NEQ] = Parser.BP_COMPARE; // !=
-    bp[TokenType.LT] = Parser.BP_COMPARE; // <
-    bp[TokenType.LTE] = Parser.BP_COMPARE; // <=
-    bp[TokenType.GT] = Parser.BP_COMPARE; // >
-    bp[TokenType.GTE] = Parser.BP_COMPARE; // >=
-
-    // Projection operators
-    // flatten has lower bp (9) than star/filter to allow chaining: foo[*][] or foo[?x][].bar
-    bp[TokenType.FLATTEN_BRACKET] = Parser.BP_FLATTEN; // []
-    bp[TokenType.FILTER_BRACKET] = Parser.BP_FILTER; // [?...]
-
-    // Postfix operators (high precedence)
-    bp[TokenType.DOT] = Parser.BP_DOT; // .
-
-    // Prefix operators
-    bp[TokenType.NOT] = Parser.BP_NOT; // !
-
-    // Bracket access (highest)
-    bp[TokenType.LBRACKET] = Parser.BP_BRACKET; // [n], ['id'], [n:], etc.
-
-    return bp;
-  })();
 
   constructor(input: string) {
     this.lexer = new Lexer(input);
@@ -105,7 +105,7 @@ export class Parser {
 
     // Inline binding power check - hot path optimization
     let token = this.lexer.peek();
-    while (token && rbp < (Parser.TOKEN_BP[token.type] || 0)) {
+    while (token && rbp < (TOKEN_BP[token.type] || 0)) {
       left = this.led(left, token);
       token = this.lexer.peek();
     }
@@ -178,7 +178,7 @@ export class Parser {
         this.lexer.advance();
         return {
           type: "not",
-          expression: this.expression(Parser.BP_NOT),
+          expression: this.expression(BP_NOT),
         };
 
       case TokenType.LPAREN: {
@@ -228,7 +228,7 @@ export class Parser {
         return {
           type: "pipe",
           lhs: left,
-          rhs: this.expression(Parser.BP_PIPE),
+          rhs: this.expression(BP_PIPE),
         };
 
       case TokenType.AND:
@@ -236,7 +236,7 @@ export class Parser {
         return {
           type: "and",
           lhs: left,
-          rhs: this.expression(Parser.BP_AND),
+          rhs: this.expression(BP_AND),
         };
 
       case TokenType.OR:
@@ -244,7 +244,7 @@ export class Parser {
         return {
           type: "or",
           lhs: left,
-          rhs: this.expression(Parser.BP_OR),
+          rhs: this.expression(BP_OR),
         };
 
       case TokenType.EQ:
@@ -253,7 +253,7 @@ export class Parser {
           type: "compare",
           operator: "==",
           lhs: left,
-          rhs: this.expression(Parser.BP_COMPARE),
+          rhs: this.expression(BP_COMPARE),
         };
 
       case TokenType.NEQ:
@@ -262,7 +262,7 @@ export class Parser {
           type: "compare",
           operator: "!=",
           lhs: left,
-          rhs: this.expression(Parser.BP_COMPARE),
+          rhs: this.expression(BP_COMPARE),
         };
 
       case TokenType.LT:
@@ -271,7 +271,7 @@ export class Parser {
           type: "compare",
           operator: "<",
           lhs: left,
-          rhs: this.expression(Parser.BP_COMPARE),
+          rhs: this.expression(BP_COMPARE),
         };
 
       case TokenType.LTE:
@@ -280,7 +280,7 @@ export class Parser {
           type: "compare",
           operator: "<=",
           lhs: left,
-          rhs: this.expression(Parser.BP_COMPARE),
+          rhs: this.expression(BP_COMPARE),
         };
 
       case TokenType.GT:
@@ -289,7 +289,7 @@ export class Parser {
           type: "compare",
           operator: ">",
           lhs: left,
-          rhs: this.expression(Parser.BP_COMPARE),
+          rhs: this.expression(BP_COMPARE),
         };
 
       case TokenType.GTE:
@@ -298,7 +298,7 @@ export class Parser {
           type: "compare",
           operator: ">=",
           lhs: left,
-          rhs: this.expression(Parser.BP_COMPARE),
+          rhs: this.expression(BP_COMPARE),
         };
 
       default:
@@ -505,10 +505,10 @@ export class Parser {
     const token = this.lexer.peek();
     if (!token) return projectionNode;
 
-    const nextBp = Parser.TOKEN_BP[token.type] || 0;
+    const nextBp = TOKEN_BP[token.type] || 0;
 
     // Terminators (bp < threshold) stop projection continuation
-    if (nextBp < Parser.PROJECTION_STOP_BP) {
+    if (nextBp < PROJECTION_STOP_BP) {
       return projectionNode;
     }
 
@@ -525,10 +525,7 @@ export class Parser {
 
       // Keep applying postfix operators until we hit a terminator
       let rhsToken = this.lexer.peek();
-      while (
-        rhsToken &&
-        (Parser.TOKEN_BP[rhsToken.type] || 0) >= Parser.PROJECTION_STOP_BP
-      ) {
+      while (rhsToken && (TOKEN_BP[rhsToken.type] || 0) >= PROJECTION_STOP_BP) {
         rhs = this.led(rhs, rhsToken);
         rhsToken = this.lexer.peek();
       }
