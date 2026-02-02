@@ -254,8 +254,8 @@ export class Parser {
 
   private consumeFilter(): ExpressionBuilder {
     // Consume either [? as filterBracket token or [ followed by ?
-    if (this.ts.is("filterBracket")) {
-      this.ts.consume("filterBracket");
+    if (this.ts.tryConsume("filterBracket")) {
+      // Filter bracket consumed
     } else {
       this.ts.consume("lbracket");
       this.ts.consume("question");
@@ -330,22 +330,25 @@ export class Parser {
     let step: number | undefined;
 
     // Parse start (optional)
-    if (this.ts.is("number")) {
-      start = parseInt(this.ts.consume("number").text, 10);
+    const startToken = this.ts.tryConsume("number");
+    if (startToken) {
+      start = parseInt(startToken.text, 10);
     }
 
     this.ts.consume("colon");
 
     // Parse end (optional)
-    if (this.ts.is("number")) {
-      end = parseInt(this.ts.consume("number").text, 10);
+    const endToken = this.ts.tryConsume("number");
+    if (endToken) {
+      end = parseInt(endToken.text, 10);
     }
 
     // Check for second colon (optional)
     if (this.ts.tryConsume("colon")) {
       // Parse step (optional)
-      if (this.ts.is("number")) {
-        step = parseInt(this.ts.consume("number").text, 10);
+      const stepToken = this.ts.tryConsume("number");
+      if (stepToken) {
+        step = parseInt(stepToken.text, 10);
       }
     }
 
@@ -402,7 +405,7 @@ export class Parser {
 
     if (bracketType === "id") {
       this.ts.consume("lbracket");
-      const id = String(this.ts.consume("rawString").value);
+      const id = this.ts.consume("rawString").value;
       this.ts.consume("rbracket");
       return (expression) => ({ type: "idAccess", expression, id });
     }
@@ -454,9 +457,9 @@ export class Parser {
     }
 
     // Raw string (used as literal)
-    if (this.ts.is("rawString")) {
-      const value = String(this.ts.consume("rawString").value);
-      return { type: "literal", value };
+    const rawString = this.ts.tryConsume("rawString");
+    if (rawString) {
+      return { type: "literal", value: rawString.value };
     }
 
     // Parenthesized expression
@@ -467,9 +470,14 @@ export class Parser {
     }
 
     // Identifier
-    if (this.ts.is("identifier") || this.ts.is("quotedString")) {
-      const id = this.parseIdentifier();
-      return { type: "identifier", id };
+    const id = this.ts.tryConsume("identifier");
+    if (id) {
+      return { type: "identifier", id: id.value };
+    }
+
+    const quoted = this.ts.tryConsume("quotedString");
+    if (quoted) {
+      return { type: "identifier", id: quoted.value };
     }
 
     const token = this.ts.peek();
@@ -479,12 +487,12 @@ export class Parser {
   }
 
   private parseIdentifier(): string {
-    if (this.ts.is("identifier")) {
-      return String(this.ts.consume("identifier").value);
-    }
-    if (this.ts.is("quotedString")) {
-      return String(this.ts.consume("quotedString").value);
-    }
+    const id = this.ts.tryConsume("identifier");
+    if (id) return id.value;
+
+    const quoted = this.ts.tryConsume("quotedString");
+    if (quoted) return quoted.value;
+
     const token = this.ts.peek();
     throw new Error(`Expected identifier at position ${token?.offset}`);
   }
@@ -502,12 +510,14 @@ export class Parser {
       return false;
     }
 
-    if (this.ts.is("number")) {
-      return parseFloat(this.ts.consume("number").text);
+    const number = this.ts.tryConsume("number");
+    if (number) {
+      return parseFloat(number.text);
     }
 
-    if (this.ts.is("quotedString")) {
-      return String(this.ts.consume("quotedString").value);
+    const quoted = this.ts.tryConsume("quotedString");
+    if (quoted) {
+      return quoted.value;
     }
 
     if (this.ts.is("lbracket")) {
@@ -528,8 +538,9 @@ export class Parser {
       const token = this.ts.peek();
       if (!token) break; // Safety check (should not happen due to eof check)
 
-      if (this.ts.is("quotedString")) {
-        result += String(this.ts.consume("quotedString").value);
+      const quoted = this.ts.tryConsume("quotedString");
+      if (quoted) {
+        result += quoted.value;
       } else {
         result += token.text;
         this.ts.advance();
@@ -575,7 +586,7 @@ export class Parser {
   }
 
   private parseJsonMember(): [string, JsonValue] {
-    const key = String(this.ts.consume("quotedString").value);
+    const key = this.ts.consume("quotedString").value;
     this.ts.consume("colon");
     const value = this.parseJsonValue();
     return [key, value];
