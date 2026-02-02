@@ -54,13 +54,120 @@ export const enum TokenType {
   FALSE = 62,
 }
 
-// Token interface
-export interface Token {
-  type: TokenType;
-  text: string;
-  value: string | number | boolean | null;
+// Base fields shared by all tokens
+interface TokenBase {
   offset: number;
 }
+
+// String-valued tokens
+export interface StringToken extends TokenBase {
+  type: TokenType.IDENTIFIER | TokenType.QUOTED_STRING | TokenType.RAW_STRING;
+  text: string;
+  value: string;
+}
+
+// Number-valued token
+export interface NumberToken extends TokenBase {
+  type: TokenType.NUMBER;
+  text: string;
+  value: number;
+}
+
+// Keyword tokens with literal values
+export interface NullToken extends TokenBase {
+  type: TokenType.NULL;
+  text: "null";
+  value: null;
+}
+
+export interface TrueToken extends TokenBase {
+  type: TokenType.TRUE;
+  text: "true";
+  value: true;
+}
+
+export interface FalseToken extends TokenBase {
+  type: TokenType.FALSE;
+  text: "false";
+  value: false;
+}
+
+// Symbol tokens (operators, delimiters) - no meaningful value
+export interface SymbolToken extends TokenBase {
+  type:
+    | TokenType.LPAREN
+    | TokenType.RPAREN
+    | TokenType.LBRACKET
+    | TokenType.RBRACKET
+    | TokenType.LBRACE
+    | TokenType.RBRACE
+    | TokenType.DOT
+    | TokenType.COMMA
+    | TokenType.COLON
+    | TokenType.PIPE
+    | TokenType.OR
+    | TokenType.AND
+    | TokenType.NOT
+    | TokenType.EQ
+    | TokenType.NEQ
+    | TokenType.LT
+    | TokenType.LTE
+    | TokenType.GT
+    | TokenType.GTE
+    | TokenType.AT
+    | TokenType.DOLLAR
+    | TokenType.STAR
+    | TokenType.QUESTION
+    | TokenType.BACKTICK
+    | TokenType.FILTER_BRACKET
+    | TokenType.FLATTEN_BRACKET;
+  text: string;
+}
+
+export type Token =
+  | StringToken
+  | NumberToken
+  | NullToken
+  | TrueToken
+  | FalseToken
+  | SymbolToken;
+
+// Type mapping from TokenType to Token interface
+export type TokenTypeMap = {
+  [TokenType.IDENTIFIER]: StringToken;
+  [TokenType.QUOTED_STRING]: StringToken;
+  [TokenType.RAW_STRING]: StringToken;
+  [TokenType.NUMBER]: NumberToken;
+  [TokenType.NULL]: NullToken;
+  [TokenType.TRUE]: TrueToken;
+  [TokenType.FALSE]: FalseToken;
+  [TokenType.LPAREN]: SymbolToken;
+  [TokenType.RPAREN]: SymbolToken;
+  [TokenType.LBRACKET]: SymbolToken;
+  [TokenType.RBRACKET]: SymbolToken;
+  [TokenType.LBRACE]: SymbolToken;
+  [TokenType.RBRACE]: SymbolToken;
+  [TokenType.DOT]: SymbolToken;
+  [TokenType.COMMA]: SymbolToken;
+  [TokenType.COLON]: SymbolToken;
+  [TokenType.PIPE]: SymbolToken;
+  [TokenType.OR]: SymbolToken;
+  [TokenType.AND]: SymbolToken;
+  [TokenType.NOT]: SymbolToken;
+  [TokenType.EQ]: SymbolToken;
+  [TokenType.NEQ]: SymbolToken;
+  [TokenType.LT]: SymbolToken;
+  [TokenType.LTE]: SymbolToken;
+  [TokenType.GT]: SymbolToken;
+  [TokenType.GTE]: SymbolToken;
+  [TokenType.AT]: SymbolToken;
+  [TokenType.DOLLAR]: SymbolToken;
+  [TokenType.STAR]: SymbolToken;
+  [TokenType.QUESTION]: SymbolToken;
+  [TokenType.BACKTICK]: SymbolToken;
+  [TokenType.FILTER_BRACKET]: SymbolToken;
+  [TokenType.FLATTEN_BRACKET]: SymbolToken;
+};
 
 // Keyword mapping
 const KEYWORDS: Record<string, TokenType> = {
@@ -102,29 +209,18 @@ export class Lexer {
   private input: string;
   private length: number;
   private pos: number = 0;
-  private current: Token | null = null;
-  private initialized: boolean = false;
+  private current: Token | null;
 
   constructor(input: string) {
     this.input = input;
     this.length = input.length;
-  }
-
-  /**
-   * Ensure lexer is initialized with first token
-   */
-  private ensureInitialized(): void {
-    if (!this.initialized) {
-      this.initialized = true;
-      this.current = this.scanNext();
-    }
+    this.current = this.scanNext();
   }
 
   /**
    * Peek at current token without consuming
    */
   peek(): Token | null {
-    this.ensureInitialized();
     return this.current;
   }
 
@@ -132,7 +228,6 @@ export class Lexer {
    * Advance to next token and return it
    */
   advance(): Token | null {
-    this.ensureInitialized();
     this.current = this.scanNext();
     return this.current;
   }
@@ -147,7 +242,7 @@ export class Lexer {
   /**
    * Consume current token if it matches type, throw otherwise
    */
-  consume(type: TokenType): Token {
+  consume<T extends TokenType>(type: T): TokenTypeMap[T] {
     const token = this.peek();
     if (!token || token.type !== type) {
       throw new Error(
@@ -155,13 +250,14 @@ export class Lexer {
       );
     }
     this.advance();
-    return token;
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    return token as TokenTypeMap[T];
   }
 
   /**
    * Try to consume token if it matches type, return null otherwise
    */
-  tryConsume(type: TokenType): Token | null {
+  tryConsume<T extends TokenType>(type: T): TokenTypeMap[T] | null {
     if (this.is(type)) {
       return this.consume(type);
     }
@@ -264,9 +360,8 @@ export class Lexer {
       return {
         type: singleType,
         text: this.input[start],
-        value: this.input[start],
         offset: start,
-      };
+      } satisfies SymbolToken;
     }
 
     if (isDigit(ch)) {
@@ -296,7 +391,6 @@ export class Lexer {
       return {
         type: TokenType.FILTER_BRACKET,
         text: "[?",
-        value: "[?",
         offset: start,
       };
     }
@@ -306,14 +400,12 @@ export class Lexer {
       return {
         type: TokenType.FLATTEN_BRACKET,
         text: "[]",
-        value: "[]",
         offset: start,
       };
     }
     return {
       type: TokenType.LBRACKET,
       text: "[",
-      value: "[",
       offset: start,
     };
   }
@@ -321,64 +413,64 @@ export class Lexer {
   /**
    * Scan | or ||
    */
-  private scanPipe(start: number): Token {
+  private scanPipe(start: number): SymbolToken {
     this.pos++; // consume |
     if (this.pos < this.length && this.input.charCodeAt(this.pos) === 124) {
       // |
       this.pos++;
-      return { type: TokenType.OR, text: "||", value: "||", offset: start };
+      return { type: TokenType.OR, text: "||", offset: start };
     }
-    return { type: TokenType.PIPE, text: "|", value: "|", offset: start };
+    return { type: TokenType.PIPE, text: "|", offset: start };
   }
 
   /**
    * Scan ! or !=
    */
-  private scanBang(start: number): Token {
+  private scanBang(start: number): SymbolToken {
     this.pos++; // consume !
     if (this.pos < this.length && this.input.charCodeAt(this.pos) === 61) {
       // =
       this.pos++;
-      return { type: TokenType.NEQ, text: "!=", value: "!=", offset: start };
+      return { type: TokenType.NEQ, text: "!=", offset: start };
     }
-    return { type: TokenType.NOT, text: "!", value: "!", offset: start };
+    return { type: TokenType.NOT, text: "!", offset: start };
   }
 
   /**
    * Scan < or <=
    */
-  private scanLessThan(start: number): Token {
+  private scanLessThan(start: number): SymbolToken {
     this.pos++; // consume <
     if (this.pos < this.length && this.input.charCodeAt(this.pos) === 61) {
       // =
       this.pos++;
-      return { type: TokenType.LTE, text: "<=", value: "<=", offset: start };
+      return { type: TokenType.LTE, text: "<=", offset: start };
     }
-    return { type: TokenType.LT, text: "<", value: "<", offset: start };
+    return { type: TokenType.LT, text: "<", offset: start };
   }
 
   /**
    * Scan > or >=
    */
-  private scanGreaterThan(start: number): Token {
+  private scanGreaterThan(start: number): SymbolToken {
     this.pos++; // consume >
     if (this.pos < this.length && this.input.charCodeAt(this.pos) === 61) {
       // =
       this.pos++;
-      return { type: TokenType.GTE, text: ">=", value: ">=", offset: start };
+      return { type: TokenType.GTE, text: ">=", offset: start };
     }
-    return { type: TokenType.GT, text: ">", value: ">", offset: start };
+    return { type: TokenType.GT, text: ">", offset: start };
   }
 
   /**
    * Scan ==
    */
-  private scanEquals(start: number): Token {
+  private scanEquals(start: number): SymbolToken {
     this.pos++; // consume first =
     if (this.pos < this.length && this.input.charCodeAt(this.pos) === 61) {
       // =
       this.pos++;
-      return { type: TokenType.EQ, text: "==", value: "==", offset: start };
+      return { type: TokenType.EQ, text: "==", offset: start };
     }
     throw new Error(
       `Unexpected character at position ${start}: expected '==' but got '='`,
@@ -388,12 +480,12 @@ export class Lexer {
   /**
    * Scan &&
    */
-  private scanAmpersand(start: number): Token {
+  private scanAmpersand(start: number): SymbolToken {
     this.pos++; // consume first &
     if (this.pos < this.length && this.input.charCodeAt(this.pos) === 38) {
       // &
       this.pos++;
-      return { type: TokenType.AND, text: "&&", value: "&&", offset: start };
+      return { type: TokenType.AND, text: "&&", offset: start };
     }
     throw new Error(
       `Unexpected character at position ${start}: expected '&&' but got '&'`,
@@ -405,7 +497,7 @@ export class Lexer {
    * Only handles \' escape
    * Optimized to use slicing for long strings
    */
-  private scanRawString(start: number): Token {
+  private scanRawString(start: number): StringToken {
     this.pos++; // consume opening '
     const startPos = this.pos;
 
@@ -477,7 +569,7 @@ export class Lexer {
    * Scan quoted string: "..."
    * Handles standard JSON escapes plus backtick (\`)
    */
-  private scanQuotedString(start: number): Token {
+  private scanQuotedString(start: number): StringToken {
     this.pos++; // consume opening "
 
     const end = this.scanQuotedStringEnd();
@@ -597,7 +689,7 @@ export class Lexer {
   /**
    * Scan number: -?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
    */
-  private scanNumber(start: number): Token {
+  private scanNumber(start: number): NumberToken {
     // Optional negative sign
     if (this.input.charCodeAt(this.pos) === 45) {
       // -
@@ -681,7 +773,9 @@ export class Lexer {
   /**
    * Scan identifier or keyword: [a-zA-Z_][a-zA-Z0-9_]*
    */
-  private scanIdentifier(start: number): Token {
+  private scanIdentifier(
+    start: number,
+  ): StringToken | NullToken | TrueToken | FalseToken {
     this.pos++; // consume first char
     while (
       this.pos < this.length &&
@@ -696,12 +790,28 @@ export class Lexer {
     const keywordType = KEYWORDS[text];
     if (keywordType !== undefined) {
       // Return keyword token with appropriate value
-      let value: boolean | null;
-      if (keywordType === TokenType.NULL) value = null;
-      else if (keywordType === TokenType.TRUE) value = true;
-      else value = false; // TokenType.FALSE
-
-      return { type: keywordType, text, value, offset: start };
+      if (keywordType === TokenType.NULL) {
+        return {
+          type: TokenType.NULL,
+          text: "null",
+          value: null,
+          offset: start,
+        };
+      } else if (keywordType === TokenType.TRUE) {
+        return {
+          type: TokenType.TRUE,
+          text: "true",
+          value: true,
+          offset: start,
+        };
+      } else {
+        return {
+          type: TokenType.FALSE,
+          text: "false",
+          value: false,
+          offset: start,
+        };
+      }
     }
 
     return { type: TokenType.IDENTIFIER, text, value: text, offset: start };
