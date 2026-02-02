@@ -54,6 +54,8 @@ export const enum TokenType {
   FALSE = 62,
 }
 
+export const TOKEN_LIMIT = TokenType.FALSE + 1;
+
 // Base fields shared by all tokens
 interface TokenBase {
   offset: number;

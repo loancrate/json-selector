@@ -1,6 +1,6 @@
 import { JsonValue } from "type-fest";
 import { JsonSelector, JsonSelectorCurrent, JsonSelectorRoot } from "./ast";
-import { Lexer, Token, TokenType } from "./lexer";
+import { Lexer, Token, TOKEN_LIMIT, TokenType } from "./lexer";
 
 // Pre-computed singleton AST nodes
 const CURRENT_NODE: Readonly<JsonSelectorCurrent> = Object.freeze({
@@ -21,11 +21,7 @@ const ROOT_NODE: Readonly<JsonSelectorRoot> = Object.freeze({
 export class Parser {
   private readonly lexer: Lexer;
 
-  // Projection stop threshold: operators below this terminate projections
-  // Separates terminators (pipe, or, and, comparisons) from continuators (dot, brackets)
-  private static readonly PROJECTION_STOP_THRESHOLD = 10;
-
-  // Named binding power constants (for direct use in hot paths)
+  // Named binding power constants (higher = tighter binding)
   private static readonly BP_PIPE = 1;
   private static readonly BP_OR = 3;
   private static readonly BP_AND = 4;
@@ -36,10 +32,14 @@ export class Parser {
   private static readonly BP_NOT = 45;
   private static readonly BP_BRACKET = 55;
 
+  // Projection stop threshold: operators below this terminate projections
+  // Separates terminators (pipe, or, and, comparisons) from continuators (dot, brackets)
+  private static readonly PROJECTION_STOP_BP = 10;
+
   // Binding power table (higher = tighter binding)
   // Use array indexed by TokenType for fast lookup
-  private static readonly BINDING_POWER: number[] = (() => {
-    const bp: number[] = new Array<number>(70).fill(0);
+  private static readonly TOKEN_BP: number[] = (() => {
+    const bp: number[] = new Array<number>(TOKEN_LIMIT).fill(0);
 
     // Terminators (lowest precedence) - already 0
     // TokenType.RPAREN, RBRACKET, RBRACE, COMMA - all 0
@@ -104,7 +104,7 @@ export class Parser {
 
     // Inline binding power check - hot path optimization
     let token = this.lexer.peek();
-    while (token && rbp < (Parser.BINDING_POWER[token.type] || 0)) {
+    while (token && rbp < (Parser.TOKEN_BP[token.type] || 0)) {
       left = this.led(left, token);
       token = this.lexer.peek();
     }
@@ -504,10 +504,10 @@ export class Parser {
     const token = this.lexer.peek();
     if (!token) return projectionNode;
 
-    const nextBp = Parser.BINDING_POWER[token.type] || 0;
+    const nextBp = Parser.TOKEN_BP[token.type] || 0;
 
     // Terminators (bp < threshold) stop projection continuation
-    if (nextBp < Parser.PROJECTION_STOP_THRESHOLD) {
+    if (nextBp < Parser.PROJECTION_STOP_BP) {
       return projectionNode;
     }
 
@@ -526,8 +526,7 @@ export class Parser {
       let rhsToken = this.lexer.peek();
       while (
         rhsToken &&
-        (Parser.BINDING_POWER[rhsToken.type] || 0) >=
-          Parser.PROJECTION_STOP_THRESHOLD
+        (Parser.TOKEN_BP[rhsToken.type] || 0) >= Parser.PROJECTION_STOP_BP
       ) {
         rhs = this.led(rhs, rhsToken);
         rhsToken = this.lexer.peek();
