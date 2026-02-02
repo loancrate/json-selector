@@ -16,13 +16,34 @@ npm run build
 
 Cleans `dist/` and builds both UMD and ESM bundles using Rollup.
 
-### Parser Generation
+### Parser
 
-```bash
-npm run generate-peggy
-```
+The parser is implemented as a **hand-written Pratt parser** (precedence-climbing) with a **custom hand-written lexer**.
 
-Generates the parser from `src/grammar.pegjs` into `src/__generated__/parser.js`. This is automatically run during `npm prepare`.
+**Status**: 593/690 tests passing (85.9%). All projection chain tests pass. 97 tests are skipped (jmespath compliance tests).
+
+**Implementation**: The parser uses Pratt parsing with binding power to handle operator precedence efficiently. The lexer uses numeric token types (const enum) and lookup tables for optimal performance.
+
+**Lexer Features**:
+
+- Numeric const enum for token types (fast comparison)
+- O(1) character classification using Uint8Array lookup tables
+- Single-character token table for direct mapping
+- Manual string scanning (raw strings: `\'` escape only, quoted strings: full JSON escapes plus backtick)
+- No regex for token matching - pure character-code scanning
+
+**Parser Key Components**:
+
+- `expression(rbp)`: Core parsing loop with binding power control
+- `nud()`: Null denotation - handles prefix operators and primary expressions
+- `led()`: Left denotation - handles infix and postfix operators
+- `parseProjectionRHS()`: Special handling for projection continuation (e.g., `foo[].bar[].baz`)
+
+**Parser Features**:
+
+- Array-based binding power lookup for fast precedence checks
+- Smart bracket type detection: flatten (9), star (20), filter (21), index (55)
+- Projection RHS correctly handles continuation vs termination
 
 ### Testing
 
@@ -44,18 +65,34 @@ npm run lint            # Run ESLint
 npm run lint:ci         # Run ESLint with JUnit output for CI
 ```
 
+**CRITICAL RULE**: NEVER suppress ESLint errors with `eslint-disable` comments. Always fix the actual type issues properly. If ESLint reports a type error, fix the types - don't silence the warning.
+
 ### Benchmarking
 
 ```bash
-npm run benchmark                              # Run and display results
-npm run benchmark -- --output results.json     # Save results to JSON file
-npm run benchmark -- --json                    # Output JSON to stdout
-npm run benchmark -- --compare a.json b.json   # Compare two result files
-npm run benchmark -- --threshold 15            # Set regression threshold (default: 10%)
-npm run benchmark -- --help                    # Show usage
+npm run benchmark                                       # Run and display results (json-selector)
+npm run benchmark -- --library jmespath                 # Benchmark jmespath.js library
+npm run benchmark -- --library typescript-jmespath      # Benchmark @jmespath-community/jmespath
+npm run benchmark -- --output results.json              # Save results to JSON file
+npm run benchmark -- --json                             # Output JSON to stdout
+npm run benchmark -- --compare a.json b.json            # Compare two result files
+npm run benchmark -- --threshold 15                     # Set regression threshold (default: 10%)
+npm run benchmark -- --help                             # Show usage
 ```
 
-Benchmarks test parsing performance across 77 test cases including:
+**Comparative Library Benchmarking**
+
+The benchmark tool supports comparing parsing performance across three JMESPath implementations:
+
+1. **json-selector** (default) - Custom parser with json-selector extensions (81 test cases)
+2. **jmespath** - Original jmespath.js library (78 test cases, excludes `$` root and `['id']` syntax)
+3. **typescript-jmespath** - @jmespath-community/jmespath fork (79 test cases, excludes `['id']` syntax)
+
+All libraries use their `compile()` function for parse-only benchmarking, ensuring fair comparison.
+
+**Test Coverage**
+
+Benchmarks test parsing performance across 81 test cases including:
 
 - Isolated node types (primitives, access patterns, collection operations, logical operators)
 - Complexity scaling (field depth, pipe chains, projections, logical chains)
@@ -64,10 +101,13 @@ Benchmarks test parsing performance across 77 test cases including:
 
 Results include average, standard deviation, min/max times, ops/sec, and percentile statistics (p50, p95, p99).
 
+**Implementation**
+
 Benchmark implementation is modular:
 
 - `benchmark/types.ts`: Type definitions for results and metadata
-- `benchmark/cases.ts`: Test case definitions and generators
+- `benchmark/cases.ts`: Test case definitions, generators, and compatibility filtering
+- `benchmark/parsers.ts`: Parser abstraction layer for multi-library support
 - `benchmark/run.ts`: Core benchmark execution and statistics
 - `benchmark/format.ts`: Console output formatting
 - `benchmark/compare.ts`: Result comparison and regression detection
@@ -77,11 +117,13 @@ Benchmark implementation is modular:
 
 ### Core Components
 
-**Parser (`src/grammar.pegjs` → `src/__generated__/parser.js`)**
+**Parser (`src/lexer.ts` + `src/parser.ts`)**
 
-- PEG.js/Peggy grammar implementing JMESPath subset with extensions
+- Custom hand-written lexer for tokenization with keyword handling
+- Hand-written Pratt parser for expression parsing
 - Parses selector strings into AST nodes
 - Handles operator precedence (pipe → or → and → compare → not → flatten → filter → star/slice → index/ID → member access)
+- See `PRATT_ANALYSIS.md` for detailed grammar analysis
 
 **AST (`src/ast.ts`)**
 
@@ -134,8 +176,8 @@ For write operations on projections/filters/slices, the library implements "inve
 
 ## Build Output
 
-- `dist/json-selector.umd.js`: UMD bundle with all dependencies included
-- `dist/json-selector.esm.js`: ESM bundle with `fast-deep-equal` as external
+- `dist/json-selector.umd.js`: UMD bundle with all dependencies (`fast-deep-equal`) included
+- `dist/json-selector.esm.js`: ESM bundle with `fast-deep-equal` as external dependency
 - `dist/index.d.ts`: TypeScript type definitions
 
-The UMD build includes the generated parser via `@rollup/plugin-commonjs`.
+The UMD build includes all dependencies via `@rollup/plugin-commonjs`. Note: The custom lexer eliminated the `moo` dependency.
