@@ -1,6 +1,7 @@
 import { JsonValue } from "type-fest";
 import { JsonSelector, JsonSelectorCurrent, JsonSelectorRoot } from "./ast";
-import { Lexer, Token, TOKEN_LIMIT, TokenType } from "./lexer";
+import { Lexer } from "./lexer";
+import { Token, TOKEN_LIMIT, TokenType } from "./token";
 
 // Pre-computed singleton AST nodes
 const CURRENT_NODE: Readonly<JsonSelectorCurrent> = Object.freeze({

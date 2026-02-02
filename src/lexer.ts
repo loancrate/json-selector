@@ -1,178 +1,14 @@
-/**
- * Hand-written lexer for JSON Selectors
- *
- * Performance-optimized using:
- * - Numeric const enum for token types (fast comparison)
- * - Direct range/value comparisons for character classification
- * - Switch-case dispatch for single-character tokens
- * - Minimal string allocations
- */
-
-// Token type enum (numeric for performance)
-export const enum TokenType {
-  // Delimiters
-  LPAREN = 1,
-  RPAREN,
-  LBRACKET,
-  RBRACKET,
-  LBRACE,
-  RBRACE,
-  DOT,
-  COMMA,
-  COLON,
-
-  // Operators
-  PIPE,
-  OR,
-  AND,
-  NOT,
-  EQ,
-  NEQ,
-  LT,
-  LTE,
-  GT,
-  GTE,
-
-  // Special symbols
-  AT,
-  DOLLAR,
-  STAR,
-  QUESTION,
-  FILTER_BRACKET,
-  FLATTEN_BRACKET,
-
-  // Values
-  IDENTIFIER,
-  QUOTED_STRING,
-  RAW_STRING,
-  BACKTICK_LITERAL,
-  NUMBER,
-
-  // Keywords
-  NULL,
-  TRUE,
-  FALSE,
-}
-
-export const TOKEN_LIMIT = TokenType.FALSE + 1;
-
-// Base fields shared by all tokens
-interface TokenBase {
-  offset: number;
-}
-
-// String-valued tokens
-export interface StringToken extends TokenBase {
-  type:
-    | TokenType.IDENTIFIER
-    | TokenType.QUOTED_STRING
-    | TokenType.RAW_STRING
-    | TokenType.BACKTICK_LITERAL;
-  text: string;
-  value: string;
-}
-
-// Number-valued token
-export interface NumberToken extends TokenBase {
-  type: TokenType.NUMBER;
-  text: string;
-  value: number;
-}
-
-// Keyword tokens with literal values
-export interface NullToken extends TokenBase {
-  type: TokenType.NULL;
-  text: "null";
-  value: null;
-}
-
-export interface TrueToken extends TokenBase {
-  type: TokenType.TRUE;
-  text: "true";
-  value: true;
-}
-
-export interface FalseToken extends TokenBase {
-  type: TokenType.FALSE;
-  text: "false";
-  value: false;
-}
-
-// Symbol tokens (operators, delimiters) - no meaningful value
-export interface SymbolToken extends TokenBase {
-  type:
-    | TokenType.LPAREN
-    | TokenType.RPAREN
-    | TokenType.LBRACKET
-    | TokenType.RBRACKET
-    | TokenType.LBRACE
-    | TokenType.RBRACE
-    | TokenType.DOT
-    | TokenType.COMMA
-    | TokenType.COLON
-    | TokenType.PIPE
-    | TokenType.OR
-    | TokenType.AND
-    | TokenType.NOT
-    | TokenType.EQ
-    | TokenType.NEQ
-    | TokenType.LT
-    | TokenType.LTE
-    | TokenType.GT
-    | TokenType.GTE
-    | TokenType.AT
-    | TokenType.DOLLAR
-    | TokenType.STAR
-    | TokenType.QUESTION
-    | TokenType.FILTER_BRACKET
-    | TokenType.FLATTEN_BRACKET;
-  text: string;
-}
-
-export type Token =
-  | StringToken
-  | NumberToken
-  | NullToken
-  | TrueToken
-  | FalseToken
-  | SymbolToken;
-
-// Type mapping from TokenType to Token interface
-export type TokenTypeMap = {
-  [TokenType.IDENTIFIER]: StringToken;
-  [TokenType.QUOTED_STRING]: StringToken;
-  [TokenType.RAW_STRING]: StringToken;
-  [TokenType.BACKTICK_LITERAL]: StringToken;
-  [TokenType.NUMBER]: NumberToken;
-  [TokenType.NULL]: NullToken;
-  [TokenType.TRUE]: TrueToken;
-  [TokenType.FALSE]: FalseToken;
-  [TokenType.LPAREN]: SymbolToken;
-  [TokenType.RPAREN]: SymbolToken;
-  [TokenType.LBRACKET]: SymbolToken;
-  [TokenType.RBRACKET]: SymbolToken;
-  [TokenType.LBRACE]: SymbolToken;
-  [TokenType.RBRACE]: SymbolToken;
-  [TokenType.DOT]: SymbolToken;
-  [TokenType.COMMA]: SymbolToken;
-  [TokenType.COLON]: SymbolToken;
-  [TokenType.PIPE]: SymbolToken;
-  [TokenType.OR]: SymbolToken;
-  [TokenType.AND]: SymbolToken;
-  [TokenType.NOT]: SymbolToken;
-  [TokenType.EQ]: SymbolToken;
-  [TokenType.NEQ]: SymbolToken;
-  [TokenType.LT]: SymbolToken;
-  [TokenType.LTE]: SymbolToken;
-  [TokenType.GT]: SymbolToken;
-  [TokenType.GTE]: SymbolToken;
-  [TokenType.AT]: SymbolToken;
-  [TokenType.DOLLAR]: SymbolToken;
-  [TokenType.STAR]: SymbolToken;
-  [TokenType.QUESTION]: SymbolToken;
-  [TokenType.FILTER_BRACKET]: SymbolToken;
-  [TokenType.FLATTEN_BRACKET]: SymbolToken;
-};
+import {
+  FalseToken,
+  NullToken,
+  NumberToken,
+  StringToken,
+  SymbolToken,
+  Token,
+  TokenType,
+  TokenTypeMap,
+  TrueToken,
+} from "./token";
 
 // Keyword mapping
 const KEYWORDS: Record<string, TokenType> = {
@@ -181,34 +17,9 @@ const KEYWORDS: Record<string, TokenType> = {
   false: TokenType.FALSE,
 };
 
-// Inline helper functions
-function isWhitespace(ch: number): boolean {
-  return ch === 32 || ch === 9 || ch === 10 || ch === 13; // space, tab, newline, carriage return
-}
-
-function isDigit(ch: number): boolean {
-  return ch >= 48 && ch <= 57; // 0-9
-}
-
-function isIdentStart(ch: number): boolean {
-  return (
-    (ch >= 65 && ch <= 90) || // A-Z
-    (ch >= 97 && ch <= 122) || // a-z
-    ch === 95
-  ); // _
-}
-
-function isIdentChar(ch: number): boolean {
-  return (
-    (ch >= 48 && ch <= 57) || // 0-9
-    (ch >= 65 && ch <= 90) || // A-Z
-    (ch >= 97 && ch <= 122) || // a-z
-    ch === 95
-  ); // _
-}
-
 /**
- * Core lexer class - now exported and used directly by parser
+ * Hand-written lexer for JSON Selector expressions providing single token
+ * lookahead.
  */
 export class Lexer {
   private input: string;
@@ -826,4 +637,29 @@ export class Lexer {
 
     return { type: TokenType.IDENTIFIER, text, value: text, offset: start };
   }
+}
+
+function isWhitespace(ch: number): boolean {
+  return ch === 32 || ch === 9 || ch === 10 || ch === 13; // space, tab, newline, carriage return
+}
+
+function isDigit(ch: number): boolean {
+  return ch >= 48 && ch <= 57; // 0-9
+}
+
+function isIdentStart(ch: number): boolean {
+  return (
+    (ch >= 65 && ch <= 90) || // A-Z
+    (ch >= 97 && ch <= 122) || // a-z
+    ch === 95
+  ); // _
+}
+
+function isIdentChar(ch: number): boolean {
+  return (
+    (ch >= 48 && ch <= 57) || // 0-9
+    (ch >= 65 && ch <= 90) || // A-Z
+    (ch >= 97 && ch <= 122) || // a-z
+    ch === 95
+  ); // _
 }
