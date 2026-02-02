@@ -38,7 +38,6 @@ export const enum TokenType {
   DOLLAR = 41,
   STAR = 42,
   QUESTION = 43,
-  BACKTICK = 44,
   FILTER_BRACKET = 45,
   FLATTEN_BRACKET = 46,
 
@@ -46,7 +45,8 @@ export const enum TokenType {
   IDENTIFIER = 50,
   QUOTED_STRING = 51,
   RAW_STRING = 52,
-  NUMBER = 53,
+  BACKTICK_LITERAL = 53,
+  NUMBER = 54,
 
   // Keywords (60-69)
   NULL = 60,
@@ -61,7 +61,11 @@ interface TokenBase {
 
 // String-valued tokens
 export interface StringToken extends TokenBase {
-  type: TokenType.IDENTIFIER | TokenType.QUOTED_STRING | TokenType.RAW_STRING;
+  type:
+    | TokenType.IDENTIFIER
+    | TokenType.QUOTED_STRING
+    | TokenType.RAW_STRING
+    | TokenType.BACKTICK_LITERAL;
   text: string;
   value: string;
 }
@@ -118,7 +122,6 @@ export interface SymbolToken extends TokenBase {
     | TokenType.DOLLAR
     | TokenType.STAR
     | TokenType.QUESTION
-    | TokenType.BACKTICK
     | TokenType.FILTER_BRACKET
     | TokenType.FLATTEN_BRACKET;
   text: string;
@@ -137,6 +140,7 @@ export type TokenTypeMap = {
   [TokenType.IDENTIFIER]: StringToken;
   [TokenType.QUOTED_STRING]: StringToken;
   [TokenType.RAW_STRING]: StringToken;
+  [TokenType.BACKTICK_LITERAL]: StringToken;
   [TokenType.NUMBER]: NumberToken;
   [TokenType.NULL]: NullToken;
   [TokenType.TRUE]: TrueToken;
@@ -164,7 +168,6 @@ export type TokenTypeMap = {
   [TokenType.DOLLAR]: SymbolToken;
   [TokenType.STAR]: SymbolToken;
   [TokenType.QUESTION]: SymbolToken;
-  [TokenType.BACKTICK]: SymbolToken;
   [TokenType.FILTER_BRACKET]: SymbolToken;
   [TokenType.FLATTEN_BRACKET]: SymbolToken;
 };
@@ -302,10 +305,12 @@ export class Lexer {
         return this.scanEquals(start);
       case 38: // &
         return this.scanAmpersand(start);
-      case 39: // '
-        return this.scanRawString(start);
       case 34: // "
         return this.scanQuotedString(start);
+      case 39: // '
+        return this.scanRawString(start);
+      case 96: // `
+        return this.scanBacktickLiteral(start);
       case 45: // - (negative number)
         if (
           this.pos + 1 < this.length &&
@@ -349,9 +354,6 @@ export class Lexer {
         break;
       case 63: // ?
         singleType = TokenType.QUESTION;
-        break;
-      case 96: // `
-        singleType = TokenType.BACKTICK;
         break;
     }
 
@@ -524,45 +526,62 @@ export class Lexer {
       throw new Error(`Unterminated string at position ${start}`);
     }
 
-    // Fast path: no escapes, just slice
-    if (!hasEscape) {
-      const value = this.input.slice(startPos, endPos);
-      const text = this.input.slice(start, endPos + 1);
-      this.pos = endPos + 1;
-      return { type: TokenType.RAW_STRING, text, value, offset: start };
+    const text = this.input.slice(start, endPos + 1);
+    let value = this.input.slice(startPos, endPos);
+
+    if (hasEscape) {
+      value = value.replace(/\\'/g, "'");
     }
 
-    // Slow path: process escapes using chunking
-    const chunks: string[] = [];
-    let pos = startPos;
+    this.pos = endPos + 1;
+    return { type: TokenType.RAW_STRING, text, value, offset: start };
+  }
 
-    while (pos < endPos) {
-      const ch = this.input.charCodeAt(pos);
-      if (ch === 92 && pos + 1 < endPos) {
-        // Backslash escape
-        if (this.input.charCodeAt(pos + 1) === 39) {
-          // \' -> '
-          chunks.push("'");
-          pos += 2;
-        } else {
-          // Keep backslash and next char
-          chunks.push(this.input.slice(pos, pos + 2));
-          pos += 2;
-        }
+  /**
+   * Scan backtick literal: `...`
+   * Extracts content between backticks, handles \` escape (JMESPath extension)
+   * Returns raw content for JSON.parse() in parser
+   */
+  private scanBacktickLiteral(start: number): StringToken {
+    this.pos++; // consume opening `
+    const startPos = this.pos;
+
+    // Find end and handle \` escapes
+    let endPos = this.pos;
+    let hasEscape = false;
+
+    while (endPos < this.length) {
+      const ch = this.input.charCodeAt(endPos);
+      if (ch === 96) {
+        // Found closing `
+        break;
+      }
+      if (
+        ch === 92 &&
+        endPos + 1 < this.length &&
+        this.input.charCodeAt(endPos + 1) === 96
+      ) {
+        // \` escape
+        hasEscape = true;
+        endPos += 2;
       } else {
-        // Regular characters - find the chunk end
-        const chunkStart = pos;
-        while (pos < endPos && this.input.charCodeAt(pos) !== 92) {
-          pos++;
-        }
-        chunks.push(this.input.slice(chunkStart, pos));
+        endPos++;
       }
     }
 
-    const value = chunks.join("");
+    if (endPos >= this.length) {
+      throw new Error(`Unterminated backtick literal at position ${start}`);
+    }
+
     const text = this.input.slice(start, endPos + 1);
+    let value = this.input.slice(startPos, endPos);
+
+    if (hasEscape) {
+      value = value.replace(/\\`/g, "`");
+    }
+
     this.pos = endPos + 1;
-    return { type: TokenType.RAW_STRING, text, value, offset: start };
+    return { type: TokenType.BACKTICK_LITERAL, text, value, offset: start };
   }
 
   /**

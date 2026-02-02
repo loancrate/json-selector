@@ -166,11 +166,17 @@ export class Parser {
         this.ts.advance();
         return { type: "literal", value: token.value };
 
-      case TokenType.BACKTICK: {
+      case TokenType.BACKTICK_LITERAL: {
         this.ts.advance();
-        const value = this.parseJsonValue();
-        this.ts.consume(TokenType.BACKTICK);
-        return { type: "literal", value };
+        const content = token.value.trim();
+        try {
+          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+          const value = JSON.parse(content) as JsonValue;
+          return { type: "literal", value };
+        } catch {
+          // Fallback: parse as unquoted string (legacy compatibility)
+          return { type: "literal", value: content };
+        }
       }
 
       case TokenType.NOT:
@@ -554,104 +560,5 @@ export class Parser {
 
     const token = this.ts.peek();
     throw new Error(`Expected identifier at position ${token?.offset}`);
-  }
-
-  /**
-   * Parse JSON value inside backticks: `{...}`, `[...]`, `"..."`, etc.
-   */
-  private parseJsonValue(): JsonValue {
-    if (this.ts.tryConsume(TokenType.NULL)) {
-      return null;
-    }
-
-    if (this.ts.tryConsume(TokenType.TRUE)) {
-      return true;
-    }
-
-    if (this.ts.tryConsume(TokenType.FALSE)) {
-      return false;
-    }
-
-    const number = this.ts.tryConsume(TokenType.NUMBER);
-    if (number) {
-      return number.value;
-    }
-
-    const quoted = this.ts.tryConsume(TokenType.QUOTED_STRING);
-    if (quoted) {
-      return quoted.value;
-    }
-
-    if (this.ts.is(TokenType.LBRACKET)) {
-      return this.parseJsonArray();
-    }
-
-    if (this.ts.is(TokenType.LBRACE)) {
-      return this.parseJsonObject();
-    }
-
-    // Fallback: parse as unquoted string (non-standard, for backwards compatibility)
-    // Consumes tokens until closing backtick
-    return this.parseUnquotedJsonString();
-  }
-
-  private parseUnquotedJsonString(): string {
-    let result = "";
-    while (!this.ts.eof() && !this.ts.is(TokenType.BACKTICK)) {
-      const token = this.ts.peek();
-      if (!token) break;
-
-      const quoted = this.ts.tryConsume(TokenType.QUOTED_STRING);
-      if (quoted) {
-        result += quoted.value;
-      } else {
-        result += token.text;
-        this.ts.advance();
-      }
-    }
-    return result.trim();
-  }
-
-  private parseJsonArray(): JsonValue[] {
-    this.ts.consume(TokenType.LBRACKET);
-
-    const values: JsonValue[] = [];
-
-    if (!this.ts.is(TokenType.RBRACKET)) {
-      values.push(this.parseJsonValue());
-
-      while (this.ts.tryConsume(TokenType.COMMA)) {
-        values.push(this.parseJsonValue());
-      }
-    }
-
-    this.ts.consume(TokenType.RBRACKET);
-    return values;
-  }
-
-  private parseJsonObject(): Record<string, JsonValue> {
-    this.ts.consume(TokenType.LBRACE);
-
-    const obj: Record<string, JsonValue> = {};
-
-    if (!this.ts.is(TokenType.RBRACE)) {
-      const [key, value] = this.parseJsonMember();
-      obj[key] = value;
-
-      while (this.ts.tryConsume(TokenType.COMMA)) {
-        const [k, v] = this.parseJsonMember();
-        obj[k] = v;
-      }
-    }
-
-    this.ts.consume(TokenType.RBRACE);
-    return obj;
-  }
-
-  private parseJsonMember(): [string, JsonValue] {
-    const key = this.ts.consume(TokenType.QUOTED_STRING).value;
-    this.ts.consume(TokenType.COLON);
-    const value = this.parseJsonValue();
-    return [key, value];
   }
 }
