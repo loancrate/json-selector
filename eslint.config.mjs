@@ -21,6 +21,10 @@ export default [
       },
     },
     rules: {
+      "@typescript-eslint/consistent-type-assertions": [
+        "warn",
+        { assertionStyle: "never" },
+      ],
       "@typescript-eslint/explicit-module-boundary-types": "warn",
       "@typescript-eslint/no-empty-object-type": "off",
       "@typescript-eslint/no-unnecessary-type-assertion": "warn",

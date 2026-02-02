@@ -6,6 +6,7 @@ import { formatMicroseconds } from "./format";
 
 export function loadBenchmarkRun(path: string): BenchmarkRun {
   const content = readFileSync(path, "utf-8");
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
   return JSON.parse(content) as BenchmarkRun;
 }
 
