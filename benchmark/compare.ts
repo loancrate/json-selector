@@ -2,7 +2,7 @@
 
 import { readFileSync } from "fs";
 import type { BenchmarkRun, ComparisonResult } from "./types";
-import { formatNumber } from "./format";
+import { formatMicroseconds } from "./format";
 
 export function loadBenchmarkRun(path: string): BenchmarkRun {
   const content = readFileSync(path, "utf-8");
@@ -78,8 +78,8 @@ export function printComparison(
   // Print header
   const header = [
     "Name".padEnd(nameWidth),
-    "Baseline".padStart(10),
-    "Current".padStart(10),
+    "Base (μs)".padStart(10),
+    "Curr (μs)".padStart(10),
     "Change".padStart(10),
     "Status",
   ].join(" │ ");
@@ -106,9 +106,9 @@ export function printComparison(
       result.name.padEnd(nameWidth),
       (result.baselineAvgMs === 0
         ? "-"
-        : formatNumber(result.baselineAvgMs)
+        : formatMicroseconds(result.baselineAvgMs)
       ).padStart(10),
-      formatNumber(result.currentAvgMs).padStart(10),
+      formatMicroseconds(result.currentAvgMs).padStart(10),
       changeStr.padStart(10),
       statusStr,
     ].join(" │ ");

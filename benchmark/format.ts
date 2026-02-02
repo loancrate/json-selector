@@ -2,13 +2,16 @@
 
 import type { BenchmarkResult, BenchmarkRun } from "./types";
 
-export function formatNumber(num: number): string {
-  if (num < 0.01) {
-    return num.toFixed(6);
-  } else if (num < 1) {
-    return num.toFixed(4);
+export function formatMicroseconds(ms: number): string {
+  const us = ms * 1000; // Convert milliseconds to microseconds
+  if (us < 1) {
+    return us.toFixed(4);
+  } else if (us < 10) {
+    return us.toFixed(3);
+  } else if (us < 100) {
+    return us.toFixed(2);
   } else {
-    return num.toFixed(2);
+    return us.toFixed(1);
   }
 }
 
@@ -34,10 +37,10 @@ export function printResults(
   const header = [
     "Name".padEnd(nameWidth),
     "Expression".padEnd(exprWidth),
-    "Avg (ms)".padStart(10),
+    "Avg (μs)".padStart(10),
     "StdDev".padStart(10),
-    "Min (ms)".padStart(10),
-    "Max (ms)".padStart(10),
+    "Min (μs)".padStart(10),
+    "p99 (μs)".padStart(10),
     "Ops/sec".padStart(12),
   ].join(" │ ");
   console.log(header);
@@ -48,10 +51,10 @@ export function printResults(
     const row = [
       result.name.padEnd(nameWidth),
       result.expression.slice(0, exprWidth).padEnd(exprWidth),
-      formatNumber(result.avgMs).padStart(10),
-      formatNumber(result.stdDev).padStart(10),
-      formatNumber(result.minMs).padStart(10),
-      formatNumber(result.maxMs).padStart(10),
+      formatMicroseconds(result.avgMs).padStart(10),
+      formatMicroseconds(result.stdDev).padStart(10),
+      formatMicroseconds(result.minMs).padStart(10),
+      formatMicroseconds(result.p99).padStart(10),
       formatOpsPerSec(result.opsPerSec).padStart(12),
     ].join(" │ ");
     console.log(row);
@@ -85,13 +88,13 @@ export function printSummary(
   const allP99s = allResults.map((r) => r.p99).sort((a, b) => a - b);
   console.log("Percentile distribution across all tests:");
   console.log(
-    `  Median (p50): ${formatNumber(allP50s[Math.floor(allP50s.length / 2)])} ms`,
+    `  Median (p50): ${formatMicroseconds(allP50s[Math.floor(allP50s.length / 2)])} μs`,
   );
   console.log(
-    `  p95:          ${formatNumber(allP95s[Math.floor(allP95s.length * 0.95)])} ms`,
+    `  p95:          ${formatMicroseconds(allP95s[Math.floor(allP95s.length * 0.95)])} μs`,
   );
   console.log(
-    `  p99:          ${formatNumber(allP99s[Math.floor(allP99s.length * 0.99)])} ms`,
+    `  p99:          ${formatMicroseconds(allP99s[Math.floor(allP99s.length * 0.99)])} μs`,
   );
   console.log();
 
@@ -101,7 +104,7 @@ export function printSummary(
   for (let i = 0; i < Math.min(5, sortedIsolated.length); i++) {
     const r = sortedIsolated[i];
     console.log(
-      `  ${i + 1}. ${r.name.padEnd(30)} ${formatNumber(r.avgMs).padStart(8)} ms - ${r.expression}`,
+      `  ${i + 1}. ${r.name.padEnd(30)} ${formatMicroseconds(r.avgMs).padStart(8)} μs - ${r.expression}`,
     );
   }
   console.log();
@@ -173,10 +176,10 @@ export function printSummary(
   );
   console.log("Real-world expressions:");
   console.log(
-    `  Average: ${formatNumber(avgRealWorld)} ms (${Math.round(1000 / avgRealWorld).toLocaleString()} ops/sec)`,
+    `  Average: ${formatMicroseconds(avgRealWorld)} μs (${Math.round(1000 / avgRealWorld).toLocaleString()} ops/sec)`,
   );
   console.log(
-    `  Slowest: ${slowestRealWorld.name} - ${formatNumber(slowestRealWorld.avgMs)} ms`,
+    `  Slowest: ${slowestRealWorld.name} - ${formatMicroseconds(slowestRealWorld.avgMs)} μs`,
   );
   console.log();
 }
