@@ -16,9 +16,14 @@ export function formatOpsPerSec(ops: number): string {
   return ops.toLocaleString("en-US");
 }
 
-export function printResults(title: string, results: BenchmarkResult[]): void {
+export function printResults(
+  title: string,
+  results: BenchmarkResult[],
+  library?: string,
+): void {
+  const sectionTitle = library ? `${title} [${library}]` : title;
   console.log("\n" + "=".repeat(140));
-  console.log(title);
+  console.log(sectionTitle);
   console.log("=".repeat(140));
 
   // Calculate column widths

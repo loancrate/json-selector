@@ -1,11 +1,12 @@
 import { execSync } from "child_process";
-import { parseJsonSelector } from "../src";
 import type {
   BenchmarkCase,
   BenchmarkConfig,
   BenchmarkMetadata,
   BenchmarkResult,
+  LibraryId,
 } from "./types";
+import type { ParseFn } from "./parsers";
 
 export function calculateStdDev(times: number[], avg: number): number {
   const variance =
@@ -19,7 +20,7 @@ export function calculatePercentile(sortedTimes: number[], p: number): number {
   return sortedTimes[index];
 }
 
-export function collectMetadata(): BenchmarkMetadata {
+export function collectMetadata(library: LibraryId): BenchmarkMetadata {
   let gitCommit = "unknown";
   let gitBranch = "unknown";
 
@@ -44,26 +45,28 @@ export function collectMetadata(): BenchmarkMetadata {
     arch: process.arch,
     gitCommit,
     gitBranch,
+    library,
   };
 }
 
 export function runBenchmark(
   cases: BenchmarkCase[],
   config: BenchmarkConfig,
+  parseFn: ParseFn,
 ): BenchmarkResult[] {
   const results: BenchmarkResult[] = [];
 
   for (const { name, expression } of cases) {
     // Warmup phase
     for (let i = 0; i < config.warmupIterations; i++) {
-      parseJsonSelector(expression);
+      parseFn(expression);
     }
 
     // Measured phase
     const times: number[] = [];
     for (let i = 0; i < config.iterations; i++) {
       const start = performance.now();
-      parseJsonSelector(expression);
+      parseFn(expression);
       times.push(performance.now() - start);
     }
 

@@ -1,3 +1,16 @@
+export const LIBRARY_IDS = [
+  "json-selector",
+  "jmespath",
+  "typescript-jmespath",
+] as const;
+
+export type LibraryId = (typeof LIBRARY_IDS)[number];
+
+export function isValidLibrary(value: string): value is LibraryId {
+  const valid: readonly string[] = LIBRARY_IDS;
+  return valid.includes(value);
+}
+
 export interface BenchmarkResult {
   name: string;
   expression: string;
@@ -25,6 +38,7 @@ export interface BenchmarkMetadata {
   arch: string;
   gitCommit: string;
   gitBranch: string;
+  library: LibraryId;
 }
 
 export interface BenchmarkConfig {

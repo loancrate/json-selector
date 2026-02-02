@@ -1,12 +1,18 @@
 /* eslint-disable no-console */
 
-import { parseArgs } from "util";
 import { writeFileSync } from "fs";
-import { getAllCases } from "./cases";
-import { collectMetadata, runBenchmark } from "./run";
-import { printResults, printSummary, toJSON } from "./format";
+import { parseArgs } from "util";
+import { getCompatibleCases } from "./cases";
 import { compareRuns, loadBenchmarkRun, printComparison } from "./compare";
-import type { BenchmarkConfig, BenchmarkRun } from "./types";
+import { printResults, printSummary, toJSON } from "./format";
+import { getLibraryDisplayName, getParser } from "./parsers";
+import { collectMetadata, runBenchmark } from "./run";
+import {
+  isValidLibrary,
+  LIBRARY_IDS,
+  type BenchmarkConfig,
+  type BenchmarkRun,
+} from "./types";
 
 const WARMUP_ITERATIONS = 1000;
 const ITERATIONS = 10000;
@@ -22,6 +28,7 @@ Usage:
   npm run benchmark -- --json                    Print JSON to stdout
   npm run benchmark -- --compare a.json b.json   Compare two result files
   npm run benchmark -- --threshold 15            Set regression threshold (default: 10%)
+  npm run benchmark -- --library jmespath        Benchmark a specific library
   npm run benchmark -- --help                    Show this help
 
 Options:
@@ -29,6 +36,8 @@ Options:
   --json                Output results as JSON to stdout (no console tables)
   --compare <a> <b>     Compare two JSON result files (baseline vs current)
   --threshold <n>       Regression threshold percentage (default: 10)
+  --library <name>      Library to benchmark (default: json-selector)
+                        Options: json-selector, jmespath, typescript-jmespath
   --help                Show this help message
 `);
 }
@@ -40,6 +49,7 @@ function main(): void {
       json: { type: "boolean", default: false },
       compare: { type: "boolean", default: false },
       threshold: { type: "string" },
+      library: { type: "string", default: "json-selector" },
       help: { type: "boolean", default: false },
     },
     allowPositionals: true,
@@ -49,6 +59,15 @@ function main(): void {
     printHelp();
     return;
   }
+
+  // Validate library choice
+  if (!isValidLibrary(values.library)) {
+    console.error(`Error: Invalid library: ${values.library}`);
+    console.error(`Valid options: ${LIBRARY_IDS.join(", ")}`);
+    process.exit(1);
+  }
+
+  const library = values.library;
 
   // Compare mode
   if (values.compare) {
@@ -76,20 +95,25 @@ function main(): void {
     iterations: ITERATIONS,
   };
 
+  const parser = getParser(library);
+  const libraryDisplayName = getLibraryDisplayName(library);
+
   if (!values.json) {
-    console.log("\nJSON Selector Parsing Performance Benchmark");
+    console.log(
+      `\nJSON Selector Parsing Performance Benchmark [${libraryDisplayName}]`,
+    );
     console.log(
       `Warmup: ${WARMUP_ITERATIONS} iterations | Measured: ${ITERATIONS} iterations\n`,
     );
   }
 
-  const cases = getAllCases();
-  const metadata = collectMetadata();
+  const cases = getCompatibleCases(library);
+  const metadata = collectMetadata(library);
 
-  const isolatedResults = runBenchmark(cases.isolated, config);
-  const scalingResults = runBenchmark(cases.scaling, config);
-  const realWorldResults = runBenchmark(cases.realWorld, config);
-  const stressResults = runBenchmark(cases.stress, config);
+  const isolatedResults = runBenchmark(cases.isolated, config, parser);
+  const scalingResults = runBenchmark(cases.scaling, config, parser);
+  const realWorldResults = runBenchmark(cases.realWorld, config, parser);
+  const stressResults = runBenchmark(cases.stress, config, parser);
 
   const benchmarkRun: BenchmarkRun = {
     metadata,
@@ -109,10 +133,22 @@ function main(): void {
   }
 
   // Table output mode
-  printResults("1. ISOLATED NODE TYPE BENCHMARKS", isolatedResults);
-  printResults("2. COMPLEXITY SCALING BENCHMARKS", scalingResults);
-  printResults("3. REAL-WORLD EXPRESSION BENCHMARKS", realWorldResults);
-  printResults("4. STRESS TEST BENCHMARKS", stressResults);
+  printResults(
+    "1. ISOLATED NODE TYPE BENCHMARKS",
+    isolatedResults,
+    libraryDisplayName,
+  );
+  printResults(
+    "2. COMPLEXITY SCALING BENCHMARKS",
+    scalingResults,
+    libraryDisplayName,
+  );
+  printResults(
+    "3. REAL-WORLD EXPRESSION BENCHMARKS",
+    realWorldResults,
+    libraryDisplayName,
+  );
+  printResults("4. STRESS TEST BENCHMARKS", stressResults, libraryDisplayName);
   printSummary(
     isolatedResults,
     scalingResults,
