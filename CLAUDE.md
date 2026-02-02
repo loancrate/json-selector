@@ -58,6 +58,19 @@ Tests are in the `test/` directory using Jest. To run a single test file:
 npx jest test/parse.test.ts
 ```
 
+**JMESPath Compliance**: 593/690 JMESPath compliance tests pass. The 97 skipped tests cover unsupported features:
+
+**Not Currently Supported** (may be added in future):
+
+- **Functions**: `max()`, `length()`, `sum()`, etc. - JMESPath built-in functions
+- **Multi-select lists**: `[foo, bar]` - selecting multiple fields into an array
+- **Multi-select hashes**: `{a: foo, b: bar}` - creating new objects from selections
+- **Object projections**: `.*` - wildcard over object keys (projects object values)
+- **Root wildcard**: `*.foo` - wildcard without context prefix
+- **Root brackets**: `[0]`, `[*]` - bracket expressions without context prefix (use `@[0]`, `@[*]` instead)
+
+The library focuses on path-based selection, projections with filters, logical operators, and extensions (root `$` reference and ID-based `['id']` access).
+
 ### Linting
 
 ```bash
