@@ -3,8 +3,8 @@
  *
  * Performance-optimized using:
  * - Numeric const enum for token types (fast comparison)
- * - Lookup tables for character classification (O(1) checks)
- * - Single-character token table (direct mapping)
+ * - Direct range/value comparisons for character classification
+ * - Switch-case dispatch for single-character tokens
  * - Minimal string allocations
  */
 
@@ -61,61 +61,6 @@ export interface Token {
   offset: number;
 }
 
-// Character classification flags
-const enum CharFlag {
-  WHITESPACE = 1,
-  DIGIT = 2,
-  IDENT_START = 4, // a-z, A-Z, _
-  IDENT_CHAR = 8, // a-z, A-Z, 0-9, _
-}
-
-// Character classification table (ASCII only, 0-127)
-const CHAR_FLAGS = new Uint8Array(128);
-
-// Initialize character flags
-function initCharFlags() {
-  // Whitespace: space, tab, newline, carriage return
-  CHAR_FLAGS[32] = CharFlag.WHITESPACE; // space
-  CHAR_FLAGS[9] = CharFlag.WHITESPACE; // tab
-  CHAR_FLAGS[10] = CharFlag.WHITESPACE; // newline
-  CHAR_FLAGS[13] = CharFlag.WHITESPACE; // carriage return
-
-  // Digits: 0-9
-  for (let i = 48; i <= 57; i++) {
-    CHAR_FLAGS[i] = CharFlag.DIGIT | CharFlag.IDENT_CHAR;
-  }
-
-  // Letters: a-z, A-Z
-  for (let i = 65; i <= 90; i++) {
-    // A-Z
-    CHAR_FLAGS[i] = CharFlag.IDENT_START | CharFlag.IDENT_CHAR;
-  }
-  for (let i = 97; i <= 122; i++) {
-    // a-z
-    CHAR_FLAGS[i] = CharFlag.IDENT_START | CharFlag.IDENT_CHAR;
-  }
-
-  // Underscore
-  CHAR_FLAGS[95] = CharFlag.IDENT_START | CharFlag.IDENT_CHAR;
-}
-initCharFlags();
-
-// Single-character token table (direct char code to token type mapping)
-const SINGLE_CHAR_TOKENS = new Int8Array(128).fill(-1);
-SINGLE_CHAR_TOKENS[40] = TokenType.LPAREN; // (
-SINGLE_CHAR_TOKENS[41] = TokenType.RPAREN; // )
-SINGLE_CHAR_TOKENS[93] = TokenType.RBRACKET; // ]
-SINGLE_CHAR_TOKENS[123] = TokenType.LBRACE; // {
-SINGLE_CHAR_TOKENS[125] = TokenType.RBRACE; // }
-SINGLE_CHAR_TOKENS[46] = TokenType.DOT; // .
-SINGLE_CHAR_TOKENS[44] = TokenType.COMMA; // ,
-SINGLE_CHAR_TOKENS[58] = TokenType.COLON; // :
-SINGLE_CHAR_TOKENS[64] = TokenType.AT; // @
-SINGLE_CHAR_TOKENS[36] = TokenType.DOLLAR; // $
-SINGLE_CHAR_TOKENS[42] = TokenType.STAR; // *
-SINGLE_CHAR_TOKENS[63] = TokenType.QUESTION; // ?
-SINGLE_CHAR_TOKENS[96] = TokenType.BACKTICK; // `
-
 // Keyword mapping
 const KEYWORDS: Record<string, TokenType> = {
   null: TokenType.NULL,
@@ -125,7 +70,7 @@ const KEYWORDS: Record<string, TokenType> = {
 
 // Inline helper functions
 function isWhitespace(ch: number): boolean {
-  return ch < 128 && (CHAR_FLAGS[ch] & CharFlag.WHITESPACE) !== 0;
+  return ch === 32 || ch === 9 || ch === 10 || ch === 13; // space, tab, newline, carriage return
 }
 
 function isDigit(ch: number): boolean {
@@ -133,11 +78,20 @@ function isDigit(ch: number): boolean {
 }
 
 function isIdentStart(ch: number): boolean {
-  return ch < 128 && (CHAR_FLAGS[ch] & CharFlag.IDENT_START) !== 0;
+  return (
+    (ch >= 65 && ch <= 90) || // A-Z
+    (ch >= 97 && ch <= 122) || // a-z
+    ch === 95
+  ); // _
 }
 
 function isIdentChar(ch: number): boolean {
-  return ch < 128 && (CHAR_FLAGS[ch] & CharFlag.IDENT_CHAR) !== 0;
+  return (
+    (ch >= 48 && ch <= 57) || // 0-9
+    (ch >= 65 && ch <= 90) || // A-Z
+    (ch >= 97 && ch <= 122) || // a-z
+    ch === 95
+  ); // _
 }
 
 /**
@@ -157,35 +111,19 @@ class Lexer {
    * Get next token (null at EOF)
    */
   next(): Token | null {
-    // Skip whitespace
+    let ch = -1;
     while (
       this.pos < this.length &&
-      isWhitespace(this.input.charCodeAt(this.pos))
+      isWhitespace((ch = this.input.charCodeAt(this.pos)))
     ) {
       this.pos++;
     }
 
-    if (this.pos >= this.length) return null;
-
     const start = this.pos;
-    const ch = this.input.charCodeAt(this.pos);
-
-    // Fast path: single-character tokens
-    if (ch < 128) {
-      const singleType = SINGLE_CHAR_TOKENS[ch];
-      if (singleType !== -1) {
-        this.pos++;
-        return {
-          type: singleType,
-          text: this.input[start],
-          value: this.input[start],
-          offset: start,
-        };
-      }
-    }
-
-    // Multi-character tokens: check first character
+    let singleType = 0;
     switch (ch) {
+      case -1:
+        return null;
       case 91: // [
         return this.scanBracket(start);
       case 124: // |
@@ -212,14 +150,61 @@ class Lexer {
           return this.scanNumber(start);
         }
         break;
+      case 40: // (
+        singleType = TokenType.LPAREN;
+        break;
+      case 41: // )
+        singleType = TokenType.RPAREN;
+        break;
+      case 93: // ]
+        singleType = TokenType.RBRACKET;
+        break;
+      case 123: // {
+        singleType = TokenType.LBRACE;
+        break;
+      case 125: // }
+        singleType = TokenType.RBRACE;
+        break;
+      case 46: // .
+        singleType = TokenType.DOT;
+        break;
+      case 44: // ,
+        singleType = TokenType.COMMA;
+        break;
+      case 58: // :
+        singleType = TokenType.COLON;
+        break;
+      case 64: // @
+        singleType = TokenType.AT;
+        break;
+      case 36: // $
+        singleType = TokenType.DOLLAR;
+        break;
+      case 42: // *
+        singleType = TokenType.STAR;
+        break;
+      case 63: // ?
+        singleType = TokenType.QUESTION;
+        break;
+      case 96: // `
+        singleType = TokenType.BACKTICK;
+        break;
     }
 
-    // Check for number
+    if (singleType !== 0) {
+      this.pos++;
+      return {
+        type: singleType,
+        text: this.input[start],
+        value: this.input[start],
+        offset: start,
+      };
+    }
+
     if (isDigit(ch)) {
       return this.scanNumber(start);
     }
 
-    // Check for identifier/keyword
     if (isIdentStart(ch)) {
       return this.scanIdentifier(start);
     }
