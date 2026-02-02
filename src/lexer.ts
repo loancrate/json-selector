@@ -10,48 +10,48 @@
 
 // Token type enum (numeric for performance)
 export const enum TokenType {
-  // Delimiters (10-19)
-  LPAREN = 10,
-  RPAREN = 11,
-  LBRACKET = 12,
-  RBRACKET = 13,
-  LBRACE = 14,
-  RBRACE = 15,
-  DOT = 16,
-  COMMA = 17,
-  COLON = 18,
+  // Delimiters
+  LPAREN = 1,
+  RPAREN,
+  LBRACKET,
+  RBRACKET,
+  LBRACE,
+  RBRACE,
+  DOT,
+  COMMA,
+  COLON,
 
-  // Operators (20-39)
-  PIPE = 20,
-  OR = 21,
-  AND = 22,
-  NOT = 23,
-  EQ = 24,
-  NEQ = 25,
-  LT = 26,
-  LTE = 27,
-  GT = 28,
-  GTE = 29,
+  // Operators
+  PIPE,
+  OR,
+  AND,
+  NOT,
+  EQ,
+  NEQ,
+  LT,
+  LTE,
+  GT,
+  GTE,
 
-  // Special symbols (40-49)
-  AT = 40,
-  DOLLAR = 41,
-  STAR = 42,
-  QUESTION = 43,
-  FILTER_BRACKET = 45,
-  FLATTEN_BRACKET = 46,
+  // Special symbols
+  AT,
+  DOLLAR,
+  STAR,
+  QUESTION,
+  FILTER_BRACKET,
+  FLATTEN_BRACKET,
 
-  // Values (50-59)
-  IDENTIFIER = 50,
-  QUOTED_STRING = 51,
-  RAW_STRING = 52,
-  BACKTICK_LITERAL = 53,
-  NUMBER = 54,
+  // Values
+  IDENTIFIER,
+  QUOTED_STRING,
+  RAW_STRING,
+  BACKTICK_LITERAL,
+  NUMBER,
 
-  // Keywords (60-69)
-  NULL = 60,
-  TRUE = 61,
-  FALSE = 62,
+  // Keywords
+  NULL,
+  TRUE,
+  FALSE,
 }
 
 export const TOKEN_LIMIT = TokenType.FALSE + 1;
