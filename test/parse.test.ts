@@ -86,17 +86,37 @@ test("parseJsonSelector", () => {
       },
     },
   });
+  // NOT has high precedence: !foo.bar.baz → ((!foo).bar).baz
   expect(parseJsonSelector("!foo.bar.baz")).toStrictEqual<JsonSelector>({
-    type: "not",
+    type: "fieldAccess",
     expression: {
       type: "fieldAccess",
       expression: {
-        type: "fieldAccess",
+        type: "not",
         expression: { type: "identifier", id: "foo" },
-        field: "bar",
       },
-      field: "baz",
+      field: "bar",
     },
+    field: "baz",
+  });
+  // NOT with bracket types: different binding powers determine precedence
+  // Index brackets (bp=55 > 45) are consumed: !foo[0] → not(foo[0])
+  expect(parseJsonSelector("!foo[0]")).toStrictEqual<JsonSelector>({
+    type: "not",
+    expression: {
+      type: "indexAccess",
+      expression: { type: "identifier", id: "foo" },
+      index: 0,
+    },
+  });
+  // Star brackets (bp=20 < 45) stop NOT: !foo[*] → (!foo)[*]
+  expect(parseJsonSelector("!foo[*]")).toStrictEqual<JsonSelector>({
+    type: "project",
+    expression: {
+      type: "not",
+      expression: { type: "identifier", id: "foo" },
+    },
+    projection: { type: "current" },
   });
   expect(parseJsonSelector("foo.bar['id'].value")).toStrictEqual<JsonSelector>({
     type: "fieldAccess",
