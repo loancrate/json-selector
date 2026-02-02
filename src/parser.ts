@@ -130,24 +130,15 @@ export class Parser {
   private parseCompare(): JsonSelector {
     let left = this.parseNot();
 
-    while (
-      this.ts.is("lte") ||
-      this.ts.is("gte") ||
-      this.ts.is("eq") ||
-      this.ts.is("neq") ||
-      this.ts.is("lt") ||
-      this.ts.is("gt")
-    ) {
+    // Optimized: Single token check + lookup instead of 6 is() calls
+    while (true) {
       const token = this.ts.peek();
-      if (!token?.type) {
-        throw new Error("Expected comparison operator but got EOF");
-      }
-      const operator = Parser.COMPARE_OPS[token.type];
-      if (!operator) {
-        throw new Error(`Unknown comparison operator: ${token.type}`);
-      }
-      this.ts.advance();
+      if (!token?.type) break;
 
+      const operator = Parser.COMPARE_OPS[token.type];
+      if (!operator) break;
+
+      this.ts.advance();
       const right = this.parseNot();
       left = { type: "compare", operator, lhs: left, rhs: right };
     }
