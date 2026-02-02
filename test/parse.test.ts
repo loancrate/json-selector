@@ -109,14 +109,15 @@ test("parseJsonSelector", () => {
       index: 0,
     },
   });
-  // Star brackets (bp=20 < 45) stop NOT: !foo[*] → (!foo)[*]
+  // Bracket access has higher BP than NOT: !foo[*] → !(foo[*])
+  // This matches jmespath.js behavior
   expect(parseJsonSelector("!foo[*]")).toStrictEqual<JsonSelector>({
-    type: "project",
+    type: "not",
     expression: {
-      type: "not",
+      type: "project",
       expression: { type: "identifier", id: "foo" },
+      projection: { type: "current" },
     },
-    projection: { type: "current" },
   });
   expect(parseJsonSelector("foo.bar['id'].value")).toStrictEqual<JsonSelector>({
     type: "fieldAccess",

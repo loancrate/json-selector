@@ -38,8 +38,9 @@ export const enum TokenType {
   DOLLAR = 41,
   STAR = 42,
   QUESTION = 43,
-  FILTER_BRACKET = 44,
-  BACKTICK = 45,
+  BACKTICK = 44,
+  FILTER_BRACKET = 45,
+  FLATTEN_BRACKET = 46,
 
   // Values (50-59)
   IDENTIFIER = 50,
@@ -95,12 +96,14 @@ function isIdentChar(ch: number): boolean {
 }
 
 /**
- * Core lexer class
+ * Core lexer class - now exported and used directly by parser
  */
-class Lexer {
+export class Lexer {
   private input: string;
   private length: number;
   private pos: number = 0;
+  private current: Token | null = null;
+  private initialized: boolean = false;
 
   constructor(input: string) {
     this.input = input;
@@ -108,9 +111,74 @@ class Lexer {
   }
 
   /**
-   * Get next token (null at EOF)
+   * Ensure lexer is initialized with first token
    */
-  next(): Token | null {
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      this.initialized = true;
+      this.current = this.scanNext();
+    }
+  }
+
+  /**
+   * Peek at current token without consuming
+   */
+  peek(): Token | null {
+    this.ensureInitialized();
+    return this.current;
+  }
+
+  /**
+   * Advance to next token and return it
+   */
+  advance(): Token | null {
+    this.ensureInitialized();
+    this.current = this.scanNext();
+    return this.current;
+  }
+
+  /**
+   * Check if current token matches type
+   */
+  is(type: TokenType): boolean {
+    return this.peek()?.type === type;
+  }
+
+  /**
+   * Consume current token if it matches type, throw otherwise
+   */
+  consume(type: TokenType): Token {
+    const token = this.peek();
+    if (!token || token.type !== type) {
+      throw new Error(
+        `Expected token type ${type} but got ${token ? `token type ${token.type}` : "EOF"} at position ${token?.offset || "end"}`,
+      );
+    }
+    this.advance();
+    return token;
+  }
+
+  /**
+   * Try to consume token if it matches type, return null otherwise
+   */
+  tryConsume(type: TokenType): Token | null {
+    if (this.is(type)) {
+      return this.consume(type);
+    }
+    return null;
+  }
+
+  /**
+   * Check if at end of input
+   */
+  eof(): boolean {
+    return this.peek() === null;
+  }
+
+  /**
+   * Get next token (null at EOF) - renamed from next() to scanNext()
+   */
+  private scanNext(): Token | null {
     let ch = -1;
     while (
       this.pos < this.length &&
@@ -215,17 +283,30 @@ class Lexer {
   }
 
   /**
-   * Scan [ or [?
+   * Scan [, [?, or []
    */
   private scanBracket(start: number): Token {
     this.pos++; // consume [
-    if (this.pos < this.length && this.input.charCodeAt(this.pos) === 63) {
+    const nextCh =
+      this.pos < this.length ? this.input.charCodeAt(this.pos) : -1;
+
+    if (nextCh === 63) {
       // ?
       this.pos++;
       return {
         type: TokenType.FILTER_BRACKET,
         text: "[?",
         value: "[?",
+        offset: start,
+      };
+    }
+    if (nextCh === 93) {
+      // ]
+      this.pos++;
+      return {
+        type: TokenType.FLATTEN_BRACKET,
+        text: "[]",
+        value: "[]",
         offset: start,
       };
     }
@@ -624,123 +705,5 @@ class Lexer {
     }
 
     return { type: TokenType.IDENTIFIER, text, value: text, offset: start };
-  }
-}
-
-/**
- * Token stream wrapper (maintains API compatibility)
- */
-export class TokenStream {
-  private tokens: Token[] = [];
-  private pos: number = 0;
-
-  constructor(input: string) {
-    const lexer = new Lexer(input);
-    let token;
-    while ((token = lexer.next()) !== null) {
-      this.tokens.push(token);
-    }
-    this.pos = 0;
-  }
-
-  // Advance to next token
-  advance(): Token | null {
-    if (this.pos < this.tokens.length) {
-      this.pos++;
-    }
-    return this.peek();
-  }
-
-  // Peek at current token
-  peek(): Token | null {
-    return this.pos < this.tokens.length ? this.tokens[this.pos] : null;
-  }
-
-  // Check if current token matches type
-  is(type: TokenType): boolean {
-    return this.peek()?.type === type;
-  }
-
-  // Consume current token if it matches type
-  consume(type: TokenType): Token {
-    const token = this.peek();
-    if (!token || token.type !== type) {
-      throw new Error(
-        `Expected token type ${type} but got ${token ? `token type ${token.type}` : "EOF"} at position ${token?.offset || "end"}`,
-      );
-    }
-    this.advance();
-    return token;
-  }
-
-  // Try to consume token if it matches type
-  tryConsume(type: TokenType): Token | null {
-    if (this.is(type)) {
-      return this.consume(type);
-    }
-    return null;
-  }
-
-  // Check if at end of input
-  eof(): boolean {
-    return this.pos >= this.tokens.length;
-  }
-
-  // Expose tokens for direct parser access
-  getTokens(): Token[] {
-    return this.tokens;
-  }
-
-  // Allow parser to sync position
-  syncPos(pos: number): void {
-    this.pos = pos;
-  }
-
-  // Allow parser to read position
-  getPos(): number {
-    return this.pos;
-  }
-
-  // Look ahead to determine bracket type
-  peekBracketType():
-    | "flatten"
-    | "filter"
-    | "star"
-    | "slice"
-    | "index"
-    | "id"
-    | null {
-    const current = this.peek();
-    if (!current) return null;
-
-    // Check for filter bracket token [?
-    if (current.type === TokenType.FILTER_BRACKET) {
-      return "filter";
-    }
-
-    // Not a bracket at all
-    if (current.type !== TokenType.LBRACKET) {
-      return null;
-    }
-
-    // Look ahead without consuming
-    const next1 =
-      this.pos + 1 < this.tokens.length ? this.tokens[this.pos + 1] : null;
-    if (!next1) return null;
-
-    // Check patterns
-    if (next1.type === TokenType.RBRACKET) return "flatten"; // []
-    if (next1.type === TokenType.STAR) return "star"; // [*
-    if (next1.type === TokenType.COLON) return "slice"; // [:
-    if (next1.type === TokenType.RAW_STRING) return "id"; // ['id']
-    if (next1.type === TokenType.NUMBER) {
-      // Could be [n] or [n:
-      const next2 =
-        this.pos + 2 < this.tokens.length ? this.tokens[this.pos + 2] : null;
-      if (next2 && next2.type === TokenType.COLON) return "slice";
-      return "index";
-    }
-
-    return null;
   }
 }

@@ -1,6 +1,6 @@
 import { JsonValue } from "type-fest";
 import { JsonSelector, JsonSelectorCompareOperator } from "./ast";
-import { TokenStream, TokenType } from "./lexer";
+import { Lexer, TokenType } from "./lexer";
 
 /**
  * Pratt Parser for JSON Selectors
@@ -11,7 +11,7 @@ import { TokenStream, TokenType } from "./lexer";
  * - led() for infix/postfix operators (with left context)
  */
 export class Parser {
-  private readonly ts: TokenStream;
+  private readonly ts: Lexer;
 
   // Projection stop threshold: operators below this terminate projections
   // Separates terminators (pipe, or, and, comparisons) from continuators (dot, brackets)
@@ -40,7 +40,7 @@ export class Parser {
 
     // Projection operators
     // flatten has lower bp (9) than star/filter to allow chaining: foo[*][] or foo[?x][].bar
-    // flatten is handled specially in getBindingPower()
+    bp[TokenType.FLATTEN_BRACKET] = 9; // []
     bp[TokenType.FILTER_BRACKET] = 21; // [?...]
 
     // Postfix operators (high precedence)
@@ -49,15 +49,11 @@ export class Parser {
     // Prefix operators
     bp[TokenType.NOT] = 45; // !
 
-    // Bracket access (highest) - handled specially in getBindingPower()
+    // Bracket access (highest)
+    bp[TokenType.LBRACKET] = 55; // [n], ['id'], [n:], etc.
 
     return bp;
   })();
-
-  // Special binding powers for context-dependent tokens
-  private static readonly FLATTEN_BP = 9;
-  private static readonly STAR_BP = 20;
-  private static readonly LBRACKET_BP = 55;
 
   // Comparison operator token to AST operator mapping
   private static readonly COMPARE_OPS: JsonSelectorCompareOperator[] = (() => {
@@ -72,7 +68,7 @@ export class Parser {
   })();
 
   constructor(input: string) {
-    this.ts = new TokenStream(input);
+    this.ts = new Lexer(input);
   }
 
   /**
@@ -109,29 +105,10 @@ export class Parser {
 
   /**
    * Get binding power of current token
-   *
-   * Special case: Brackets have context-dependent binding power based on their content.
-   * [] (flatten) has lower precedence than [*]/[0]/['id'] to allow projection chaining.
    */
   private getBindingPower(): number {
     const token = this.ts.peek();
     if (!token) return 0;
-
-    // Brackets need lookahead to determine their binding power:
-    // - [] (flatten) → bp=9 (low, allows chaining after projections)
-    // - [*] (star) → bp=20 (medium, projection operator)
-    // - [0], ['id'], [:] (index/id/slice) → bp=55 (highest, tightest binding)
-    if (token.type === TokenType.LBRACKET) {
-      const bracketType = this.ts.peekBracketType();
-      if (bracketType === "flatten") {
-        return Parser.FLATTEN_BP;
-      }
-      if (bracketType === "star") {
-        return Parser.STAR_BP;
-      }
-      return Parser.LBRACKET_BP;
-    }
-
     return Parser.BINDING_POWER[token.type] ?? 0;
   }
 
@@ -185,6 +162,16 @@ export class Parser {
         const expr = this.expression(0);
         this.ts.consume(TokenType.RPAREN);
         return expr;
+      }
+
+      case TokenType.FLATTEN_BRACKET: {
+        // Leading [] applies to @
+        this.ts.consume(TokenType.FLATTEN_BRACKET);
+        const flattenNode: JsonSelector = {
+          type: "flatten",
+          expression: { type: "current" },
+        };
+        return this.parseProjectionRHS(flattenNode);
       }
 
       case TokenType.LBRACKET:
@@ -251,6 +238,16 @@ export class Parser {
         };
       }
 
+      case TokenType.FLATTEN_BRACKET: {
+        // bp=9
+        this.ts.consume(TokenType.FLATTEN_BRACKET);
+        const flattenNode: JsonSelector = {
+          type: "flatten",
+          expression: left,
+        };
+        return this.parseProjectionRHS(flattenNode);
+      }
+
       case TokenType.FILTER_BRACKET: // bp=21
         return this.parseFilterExpression(left);
 
@@ -272,31 +269,21 @@ export class Parser {
   }
 
   /**
-   * Parse leading bracket expressions (no LHS): [], [*], [0], [:], ['id']
+   * Parse leading bracket expressions (no LHS): [0], [:], [*], ['id']
    *
    * When a bracket appears at the start of an expression or after an operator,
    * it implicitly applies to @ (current context). For example:
    * - `[0]` means `@[0]`
    * - `foo | [*]` means `foo | @[*]`
+   *
+   * Note: [] (flatten) is handled separately via FLATTEN_BRACKET token in nud()
    */
   private parseLeadingBracket(): JsonSelector {
-    const bracketType = this.ts.peekBracketType();
+    // Must be LBRACKET - consume it and check what follows
+    this.ts.consume(TokenType.LBRACKET);
 
-    if (bracketType === "flatten") {
-      // Leading [] applies to @
-      this.ts.consume(TokenType.LBRACKET);
-      this.ts.consume(TokenType.RBRACKET);
-      const flattenNode: JsonSelector = {
-        type: "flatten",
-        expression: { type: "current" },
-      };
-      // Continue parsing RHS (e.g., [].foo)
-      return this.parseProjectionRHS(flattenNode);
-    }
-
-    if (bracketType === "star") {
+    if (this.ts.is(TokenType.STAR)) {
       // Leading [*] applies to @
-      this.ts.consume(TokenType.LBRACKET);
       this.ts.consume(TokenType.STAR);
       this.ts.consume(TokenType.RBRACKET);
       const projectNode: JsonSelector = {
@@ -307,27 +294,14 @@ export class Parser {
       return this.parseProjectionRHS(projectNode);
     }
 
-    if (bracketType === "slice") {
-      // Leading [:] applies to @
-      const sliceNode = this.parseSlice({ type: "current" });
+    if (this.ts.is(TokenType.COLON)) {
+      // Slice starting with colon: [:n] or [:]
+      const sliceNode = this.parseSliceAfterBracket({ type: "current" });
       return this.parseProjectionRHS(sliceNode);
     }
 
-    if (bracketType === "index") {
-      // Leading [0] applies to @
-      this.ts.consume(TokenType.LBRACKET);
-      const index = parseInt(this.ts.consume(TokenType.NUMBER).text, 10);
-      this.ts.consume(TokenType.RBRACKET);
-      return {
-        type: "indexAccess",
-        expression: { type: "current" },
-        index,
-      };
-    }
-
-    if (bracketType === "id") {
-      // Leading ['id'] applies to @
-      this.ts.consume(TokenType.LBRACKET);
+    if (this.ts.is(TokenType.RAW_STRING)) {
+      // ID access: ['id']
       const id = String(this.ts.consume(TokenType.RAW_STRING).value);
       this.ts.consume(TokenType.RBRACKET);
       return {
@@ -337,7 +311,26 @@ export class Parser {
       };
     }
 
-    throw new Error("Invalid bracket expression");
+    if (this.ts.is(TokenType.NUMBER)) {
+      const num = parseInt(this.ts.consume(TokenType.NUMBER).text, 10);
+      if (this.ts.is(TokenType.COLON)) {
+        // Slice: [n:...]
+        const sliceNode = this.parseSliceAfterStart({ type: "current" }, num);
+        return this.parseProjectionRHS(sliceNode);
+      }
+      // Index: [n]
+      this.ts.consume(TokenType.RBRACKET);
+      return {
+        type: "indexAccess",
+        expression: { type: "current" },
+        index: num,
+      };
+    }
+
+    const token = this.ts.peek();
+    throw new Error(
+      `Unexpected token after [ at position ${token?.offset}: ${token?.text}`,
+    );
   }
 
   /**
@@ -364,24 +357,15 @@ export class Parser {
 
   /**
    * Parse bracket expression with LHS: foo[0], foo[:], foo[*], foo['id']
+   *
+   * Note: foo[] (flatten) is handled separately via FLATTEN_BRACKET token in led()
    */
   private parseBracketExpression(left: JsonSelector): JsonSelector {
-    const bracketType = this.ts.peekBracketType();
+    // Must be LBRACKET - consume it and check what follows
+    this.ts.consume(TokenType.LBRACKET);
 
-    if (bracketType === "flatten") {
-      // foo[] - flatten
-      this.ts.consume(TokenType.LBRACKET);
-      this.ts.consume(TokenType.RBRACKET);
-      const flattenNode: JsonSelector = {
-        type: "flatten",
-        expression: left,
-      };
-      return this.parseProjectionRHS(flattenNode);
-    }
-
-    if (bracketType === "star") {
+    if (this.ts.is(TokenType.STAR)) {
       // foo[*] - project
-      this.ts.consume(TokenType.LBRACKET);
       this.ts.consume(TokenType.STAR);
       this.ts.consume(TokenType.RBRACKET);
       const projectNode: JsonSelector = {
@@ -392,27 +376,14 @@ export class Parser {
       return this.parseProjectionRHS(projectNode);
     }
 
-    if (bracketType === "slice") {
-      // foo[0:5] - slice (creates projection)
-      const sliceNode = this.parseSlice(left);
+    if (this.ts.is(TokenType.COLON)) {
+      // Slice starting with colon: foo[:n] or foo[:]
+      const sliceNode = this.parseSliceAfterBracket(left);
       return this.parseProjectionRHS(sliceNode);
     }
 
-    if (bracketType === "index") {
-      // foo[0] - index (no projection)
-      this.ts.consume(TokenType.LBRACKET);
-      const index = parseInt(this.ts.consume(TokenType.NUMBER).text, 10);
-      this.ts.consume(TokenType.RBRACKET);
-      return {
-        type: "indexAccess",
-        expression: left,
-        index,
-      };
-    }
-
-    if (bracketType === "id") {
+    if (this.ts.is(TokenType.RAW_STRING)) {
       // foo['id'] - id access (no projection)
-      this.ts.consume(TokenType.LBRACKET);
       const id = String(this.ts.consume(TokenType.RAW_STRING).value);
       this.ts.consume(TokenType.RBRACKET);
       return {
@@ -422,7 +393,26 @@ export class Parser {
       };
     }
 
-    throw new Error("Invalid bracket expression");
+    if (this.ts.is(TokenType.NUMBER)) {
+      const num = parseInt(this.ts.consume(TokenType.NUMBER).text, 10);
+      if (this.ts.is(TokenType.COLON)) {
+        // Slice: foo[n:...]
+        const sliceNode = this.parseSliceAfterStart(left, num);
+        return this.parseProjectionRHS(sliceNode);
+      }
+      // Index: foo[n]
+      this.ts.consume(TokenType.RBRACKET);
+      return {
+        type: "indexAccess",
+        expression: left,
+        index: num,
+      };
+    }
+
+    const token = this.ts.peek();
+    throw new Error(
+      `Unexpected token after [ at position ${token?.offset}: ${token?.text}`,
+    );
   }
 
   /**
@@ -476,11 +466,12 @@ export class Parser {
     const token = this.ts.peek();
     if (!token) return projectionNode;
 
-    // Continue with dot, bracket, or filter - these are postfix operators
+    // Continue with dot, bracket, flatten, or filter - these are postfix operators
     // Parse them starting from @ (current context within the projection)
     if (
       token.type === TokenType.DOT ||
       token.type === TokenType.LBRACKET ||
+      token.type === TokenType.FLATTEN_BRACKET ||
       token.type === TokenType.FILTER_BRACKET
     ) {
       // Start with @ (current element in projection) and build up the RHS expression
@@ -513,24 +504,54 @@ export class Parser {
   }
 
   /**
-   * Parse slice: [start:end] or [start:end:step]
+   * Parse slice after [ has been consumed and we see a colon first: [:end:step]
    *
-   * All three components are optional: [:] is valid.
-   * Returns a slice node (creates a projection when wrapped by parseProjectionRHS).
+   * Called when pattern is [:...], meaning start is undefined.
    */
-  private parseSlice(left: JsonSelector): JsonSelector {
-    this.ts.consume(TokenType.LBRACKET);
+  private parseSliceAfterBracket(left: JsonSelector): JsonSelector {
+    // [ already consumed, current token should be COLON
+    this.ts.consume(TokenType.COLON);
 
-    let start: number | undefined;
     let end: number | undefined;
     let step: number | undefined;
 
-    const startToken = this.ts.tryConsume(TokenType.NUMBER);
-    if (startToken) {
-      start = parseInt(startToken.text, 10);
+    const endToken = this.ts.tryConsume(TokenType.NUMBER);
+    if (endToken) {
+      end = parseInt(endToken.text, 10);
     }
 
+    if (this.ts.tryConsume(TokenType.COLON)) {
+      const stepToken = this.ts.tryConsume(TokenType.NUMBER);
+      if (stepToken) {
+        step = parseInt(stepToken.text, 10);
+      }
+    }
+
+    this.ts.consume(TokenType.RBRACKET);
+
+    return {
+      type: "slice",
+      expression: left,
+      start: undefined,
+      end,
+      step,
+    };
+  }
+
+  /**
+   * Parse slice after [ and start number have been consumed: [start:end:step]
+   *
+   * Called when pattern is [n:...], meaning start is known.
+   */
+  private parseSliceAfterStart(
+    left: JsonSelector,
+    start: number,
+  ): JsonSelector {
+    // [ and start NUMBER already consumed, current token should be COLON
     this.ts.consume(TokenType.COLON);
+
+    let end: number | undefined;
+    let step: number | undefined;
 
     const endToken = this.ts.tryConsume(TokenType.NUMBER);
     if (endToken) {
