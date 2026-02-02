@@ -1,4 +1,4 @@
-import type { BenchmarkCase } from "./types";
+import type { BenchmarkCase, LibraryId } from "./types";
 
 // Expression generators
 export function generateFieldChain(depth: number): string {
@@ -216,5 +216,40 @@ export function getAllCases(): {
     scaling: scalingCases,
     realWorld: realWorldCases,
     stress: stressCases,
+  };
+}
+
+export function getCompatibleCases(library: LibraryId): {
+  isolated: BenchmarkCase[];
+  scaling: BenchmarkCase[];
+  realWorld: BenchmarkCase[];
+  stress: BenchmarkCase[];
+} {
+  const all = getAllCases();
+
+  if (library === "json-selector") {
+    return all; // All cases supported
+  }
+
+  // Filter out json-selector extensions based on library support:
+  // - ID access syntax ['string'] - not supported by any JMESPath library
+  // - Root node ($) - only supported by typescript-jmespath, not jmespath.js
+  const isCompatible = (c: BenchmarkCase) => {
+    // ID access syntax not supported by any JMESPath library
+    if (c.expression.includes("['")) {
+      return false;
+    }
+    // Root node only supported by typescript-jmespath
+    if (c.expression.includes("$") && library === "jmespath") {
+      return false;
+    }
+    return true;
+  };
+
+  return {
+    isolated: all.isolated.filter(isCompatible),
+    scaling: all.scaling.filter(isCompatible),
+    realWorld: all.realWorld.filter(isCompatible),
+    stress: all.stress.filter(isCompatible),
   };
 }
