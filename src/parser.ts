@@ -1,10 +1,5 @@
 import { JsonValue } from "type-fest";
-import {
-  JsonSelector,
-  JsonSelectorCompareOperator,
-  JsonSelectorCurrent,
-  JsonSelectorRoot,
-} from "./ast";
+import { JsonSelector, JsonSelectorCurrent, JsonSelectorRoot } from "./ast";
 import { Lexer, Token, TokenType } from "./lexer";
 
 // Pre-computed singleton AST nodes
@@ -30,6 +25,17 @@ export class Parser {
   // Separates terminators (pipe, or, and, comparisons) from continuators (dot, brackets)
   private static readonly PROJECTION_STOP_THRESHOLD = 10;
 
+  // Named binding power constants (for direct use in hot paths)
+  private static readonly BP_PIPE = 1;
+  private static readonly BP_OR = 3;
+  private static readonly BP_AND = 4;
+  private static readonly BP_COMPARE = 7;
+  private static readonly BP_FLATTEN = 9;
+  private static readonly BP_FILTER = 21;
+  private static readonly BP_DOT = 40;
+  private static readonly BP_NOT = 45;
+  private static readonly BP_BRACKET = 55;
+
   // Binding power table (higher = tighter binding)
   // Use array indexed by TokenType for fast lookup
   private static readonly BINDING_POWER: number[] = (() => {
@@ -39,45 +45,33 @@ export class Parser {
     // TokenType.RPAREN, RBRACKET, RBRACE, COMMA - all 0
 
     // Binary operators (low to high)
-    bp[TokenType.PIPE] = 1; // |
-    bp[TokenType.OR] = 3; // ||
-    bp[TokenType.AND] = 4; // &&
+    bp[TokenType.PIPE] = Parser.BP_PIPE; // |
+    bp[TokenType.OR] = Parser.BP_OR; // ||
+    bp[TokenType.AND] = Parser.BP_AND; // &&
 
     // Comparison operators (all same precedence - non-associative, cannot chain)
-    bp[TokenType.EQ] = 7; // ==
-    bp[TokenType.NEQ] = 7; // !=
-    bp[TokenType.LT] = 7; // <
-    bp[TokenType.LTE] = 7; // <=
-    bp[TokenType.GT] = 7; // >
-    bp[TokenType.GTE] = 7; // >=
+    bp[TokenType.EQ] = Parser.BP_COMPARE; // ==
+    bp[TokenType.NEQ] = Parser.BP_COMPARE; // !=
+    bp[TokenType.LT] = Parser.BP_COMPARE; // <
+    bp[TokenType.LTE] = Parser.BP_COMPARE; // <=
+    bp[TokenType.GT] = Parser.BP_COMPARE; // >
+    bp[TokenType.GTE] = Parser.BP_COMPARE; // >=
 
     // Projection operators
     // flatten has lower bp (9) than star/filter to allow chaining: foo[*][] or foo[?x][].bar
-    bp[TokenType.FLATTEN_BRACKET] = 9; // []
-    bp[TokenType.FILTER_BRACKET] = 21; // [?...]
+    bp[TokenType.FLATTEN_BRACKET] = Parser.BP_FLATTEN; // []
+    bp[TokenType.FILTER_BRACKET] = Parser.BP_FILTER; // [?...]
 
     // Postfix operators (high precedence)
-    bp[TokenType.DOT] = 40; // .
+    bp[TokenType.DOT] = Parser.BP_DOT; // .
 
     // Prefix operators
-    bp[TokenType.NOT] = 45; // !
+    bp[TokenType.NOT] = Parser.BP_NOT; // !
 
     // Bracket access (highest)
-    bp[TokenType.LBRACKET] = 55; // [n], ['id'], [n:], etc.
+    bp[TokenType.LBRACKET] = Parser.BP_BRACKET; // [n], ['id'], [n:], etc.
 
     return bp;
-  })();
-
-  // Comparison operator token to AST operator mapping
-  private static readonly COMPARE_OPS: JsonSelectorCompareOperator[] = (() => {
-    const ops = new Array<JsonSelectorCompareOperator>(70);
-    ops[TokenType.LTE] = "<=";
-    ops[TokenType.GTE] = ">=";
-    ops[TokenType.EQ] = "==";
-    ops[TokenType.NEQ] = "!=";
-    ops[TokenType.LT] = "<";
-    ops[TokenType.GT] = ">";
-    return ops;
   })();
 
   constructor(input: string) {
@@ -89,8 +83,8 @@ export class Parser {
    */
   parse(): JsonSelector {
     const result = this.expression(0);
-    if (!this.ts.eof()) {
-      const token = this.ts.peek();
+    const token = this.ts.peek();
+    if (token) {
       throw new Error(
         `Unexpected token at position ${token?.offset}: ${token?.text}`,
       );
@@ -183,7 +177,7 @@ export class Parser {
         this.ts.advance();
         return {
           type: "not",
-          expression: this.expression(Parser.BINDING_POWER[TokenType.NOT]),
+          expression: this.expression(Parser.BP_NOT),
         };
 
       case TokenType.LPAREN: {
@@ -233,7 +227,7 @@ export class Parser {
         return {
           type: "pipe",
           lhs: left,
-          rhs: this.expression(Parser.BINDING_POWER[TokenType.PIPE]),
+          rhs: this.expression(Parser.BP_PIPE),
         };
 
       case TokenType.AND:
@@ -241,7 +235,7 @@ export class Parser {
         return {
           type: "and",
           lhs: left,
-          rhs: this.expression(Parser.BINDING_POWER[TokenType.AND]),
+          rhs: this.expression(Parser.BP_AND),
         };
 
       case TokenType.OR:
@@ -249,24 +243,62 @@ export class Parser {
         return {
           type: "or",
           lhs: left,
-          rhs: this.expression(Parser.BINDING_POWER[TokenType.OR]),
+          rhs: this.expression(Parser.BP_OR),
         };
 
       case TokenType.EQ:
-      case TokenType.NEQ:
-      case TokenType.LT:
-      case TokenType.LTE:
-      case TokenType.GT:
-      case TokenType.GTE: {
-        const compareOp = Parser.COMPARE_OPS[token.type];
         this.ts.advance();
         return {
           type: "compare",
-          operator: compareOp,
+          operator: "==",
           lhs: left,
-          rhs: this.expression(Parser.BINDING_POWER[token.type]),
+          rhs: this.expression(Parser.BP_COMPARE),
         };
-      }
+
+      case TokenType.NEQ:
+        this.ts.advance();
+        return {
+          type: "compare",
+          operator: "!=",
+          lhs: left,
+          rhs: this.expression(Parser.BP_COMPARE),
+        };
+
+      case TokenType.LT:
+        this.ts.advance();
+        return {
+          type: "compare",
+          operator: "<",
+          lhs: left,
+          rhs: this.expression(Parser.BP_COMPARE),
+        };
+
+      case TokenType.LTE:
+        this.ts.advance();
+        return {
+          type: "compare",
+          operator: "<=",
+          lhs: left,
+          rhs: this.expression(Parser.BP_COMPARE),
+        };
+
+      case TokenType.GT:
+        this.ts.advance();
+        return {
+          type: "compare",
+          operator: ">",
+          lhs: left,
+          rhs: this.expression(Parser.BP_COMPARE),
+        };
+
+      case TokenType.GTE:
+        this.ts.advance();
+        return {
+          type: "compare",
+          operator: ">=",
+          lhs: left,
+          rhs: this.expression(Parser.BP_COMPARE),
+        };
 
       default:
         throw new Error(
@@ -289,55 +321,58 @@ export class Parser {
     // Must be LBRACKET - consume it and check what follows
     this.ts.consume(TokenType.LBRACKET);
 
-    if (this.ts.is(TokenType.STAR)) {
-      // Leading [*] applies to @
-      this.ts.consume(TokenType.STAR);
-      this.ts.consume(TokenType.RBRACKET);
-      const projectNode: JsonSelector = {
-        type: "project",
-        expression: CURRENT_NODE,
-        projection: CURRENT_NODE,
-      };
-      return this.parseProjectionRHS(projectNode);
-    }
+    const token = this.ts.peek();
+    switch (token?.type) {
+      case TokenType.STAR: {
+        // Leading [*] applies to @
+        this.ts.consume(TokenType.STAR);
+        this.ts.consume(TokenType.RBRACKET);
+        const projectNode: JsonSelector = {
+          type: "project",
+          expression: CURRENT_NODE,
+          projection: CURRENT_NODE,
+        };
+        return this.parseProjectionRHS(projectNode);
+      }
 
-    if (this.ts.is(TokenType.COLON)) {
-      // Slice starting with colon: [:n] or [:]
-      const sliceNode = this.parseSlice(CURRENT_NODE);
-      return this.parseProjectionRHS(sliceNode);
-    }
+      case TokenType.RAW_STRING: {
+        // ID access: ['id']
+        const id = this.ts.consume(TokenType.RAW_STRING).value;
+        this.ts.consume(TokenType.RBRACKET);
+        return {
+          type: "idAccess",
+          expression: CURRENT_NODE,
+          id,
+        };
+      }
 
-    if (this.ts.is(TokenType.RAW_STRING)) {
-      // ID access: ['id']
-      const id = this.ts.consume(TokenType.RAW_STRING).value;
-      this.ts.consume(TokenType.RBRACKET);
-      return {
-        type: "idAccess",
-        expression: CURRENT_NODE,
-        id,
-      };
-    }
+      case TokenType.NUMBER: {
+        const num = this.ts.consume(TokenType.NUMBER).value;
+        if (this.ts.peek()?.type === TokenType.COLON) {
+          // Slice: [n:...]
+          const sliceNode = this.parseSlice(CURRENT_NODE, num);
+          return this.parseProjectionRHS(sliceNode);
+        }
+        // Index: [n]
+        this.ts.consume(TokenType.RBRACKET);
+        return {
+          type: "indexAccess",
+          expression: CURRENT_NODE,
+          index: num,
+        };
+      }
 
-    if (this.ts.is(TokenType.NUMBER)) {
-      const num = this.ts.consume(TokenType.NUMBER).value;
-      if (this.ts.is(TokenType.COLON)) {
-        // Slice: [n:...]
-        const sliceNode = this.parseSlice(CURRENT_NODE, num);
+      case TokenType.COLON: {
+        // Slice starting with colon: [:n] or [:]
+        const sliceNode = this.parseSlice(CURRENT_NODE);
         return this.parseProjectionRHS(sliceNode);
       }
-      // Index: [n]
-      this.ts.consume(TokenType.RBRACKET);
-      return {
-        type: "indexAccess",
-        expression: CURRENT_NODE,
-        index: num,
-      };
-    }
 
-    const token = this.ts.peek();
-    throw new Error(
-      `Unexpected token after [ at position ${token?.offset}: ${token?.text}`,
-    );
+      default:
+        throw new Error(
+          `Unexpected token after [ at position ${token?.offset}: ${token?.text}`,
+        );
+    }
   }
 
   /**
@@ -371,55 +406,58 @@ export class Parser {
     // Must be LBRACKET - consume it and check what follows
     this.ts.consume(TokenType.LBRACKET);
 
-    if (this.ts.is(TokenType.STAR)) {
-      // foo[*] - project
-      this.ts.consume(TokenType.STAR);
-      this.ts.consume(TokenType.RBRACKET);
-      const projectNode: JsonSelector = {
-        type: "project",
-        expression: left,
-        projection: CURRENT_NODE,
-      };
-      return this.parseProjectionRHS(projectNode);
-    }
+    const token = this.ts.peek();
+    switch (token?.type) {
+      case TokenType.STAR: {
+        // foo[*] - project
+        this.ts.consume(TokenType.STAR);
+        this.ts.consume(TokenType.RBRACKET);
+        const projectNode: JsonSelector = {
+          type: "project",
+          expression: left,
+          projection: CURRENT_NODE,
+        };
+        return this.parseProjectionRHS(projectNode);
+      }
 
-    if (this.ts.is(TokenType.COLON)) {
-      // Slice starting with colon: foo[:n] or foo[:]
-      const sliceNode = this.parseSlice(left);
-      return this.parseProjectionRHS(sliceNode);
-    }
+      case TokenType.RAW_STRING: {
+        // foo['id'] - id access (no projection)
+        const id = this.ts.consume(TokenType.RAW_STRING).value;
+        this.ts.consume(TokenType.RBRACKET);
+        return {
+          type: "idAccess",
+          expression: left,
+          id,
+        };
+      }
 
-    if (this.ts.is(TokenType.RAW_STRING)) {
-      // foo['id'] - id access (no projection)
-      const id = this.ts.consume(TokenType.RAW_STRING).value;
-      this.ts.consume(TokenType.RBRACKET);
-      return {
-        type: "idAccess",
-        expression: left,
-        id,
-      };
-    }
+      case TokenType.NUMBER: {
+        const num = this.ts.consume(TokenType.NUMBER).value;
+        if (this.ts.peek()?.type === TokenType.COLON) {
+          // Slice: foo[n:...]
+          const sliceNode = this.parseSlice(left, num);
+          return this.parseProjectionRHS(sliceNode);
+        }
+        // Index: foo[n]
+        this.ts.consume(TokenType.RBRACKET);
+        return {
+          type: "indexAccess",
+          expression: left,
+          index: num,
+        };
+      }
 
-    if (this.ts.is(TokenType.NUMBER)) {
-      const num = this.ts.consume(TokenType.NUMBER).value;
-      if (this.ts.is(TokenType.COLON)) {
-        // Slice: foo[n:...]
-        const sliceNode = this.parseSlice(left, num);
+      case TokenType.COLON: {
+        // Slice starting with colon: foo[:n] or foo[:]
+        const sliceNode = this.parseSlice(left);
         return this.parseProjectionRHS(sliceNode);
       }
-      // Index: foo[n]
-      this.ts.consume(TokenType.RBRACKET);
-      return {
-        type: "indexAccess",
-        expression: left,
-        index: num,
-      };
-    }
 
-    const token = this.ts.peek();
-    throw new Error(
-      `Unexpected token after [ at position ${token?.offset}: ${token?.text}`,
-    );
+      default:
+        throw new Error(
+          `Unexpected token after [ at position ${token?.offset}: ${token?.text}`,
+        );
+    }
   }
 
   /**
@@ -498,10 +536,8 @@ export class Parser {
       // Update the projection to apply RHS to each element
       // [*] nodes already have a projection field, so update it directly
       if (projectionNode.type === "project") {
-        return {
-          ...projectionNode,
-          projection: rhs,
-        };
+        projectionNode.projection = rhs;
+        return projectionNode;
       }
 
       // flatten/filter/slice nodes don't have projection fields, so wrap them

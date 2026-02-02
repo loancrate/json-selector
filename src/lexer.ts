@@ -236,13 +236,6 @@ export class Lexer {
   }
 
   /**
-   * Check if current token matches type
-   */
-  is(type: TokenType): boolean {
-    return this.peek()?.type === type;
-  }
-
-  /**
    * Consume current token if it matches type, throw otherwise
    */
   consume<T extends TokenType>(type: T): TokenTypeMap[T] {
@@ -261,17 +254,13 @@ export class Lexer {
    * Try to consume token if it matches type, return null otherwise
    */
   tryConsume<T extends TokenType>(type: T): TokenTypeMap[T] | null {
-    if (this.is(type)) {
-      return this.consume(type);
+    const token = this.peek();
+    if (!token || token.type !== type) {
+      return null;
     }
-    return null;
-  }
-
-  /**
-   * Check if at end of input
-   */
-  eof(): boolean {
-    return this.peek() === null;
+    this.advance();
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    return token as TokenTypeMap[T];
   }
 
   /**
