@@ -44,6 +44,7 @@ export interface BenchmarkMetadata {
 export interface BenchmarkConfig {
   warmupIterations: number;
   iterations: number;
+  runsPerIteration: number;
 }
 
 export interface BenchmarkRun {

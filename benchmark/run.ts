@@ -62,13 +62,29 @@ export function runBenchmark(
       parseFn(expression);
     }
 
-    // Measured phase
-    const times: number[] = [];
-    for (let i = 0; i < config.iterations; i++) {
-      const start = performance.now();
-      parseFn(expression);
-      times.push(performance.now() - start);
+    // Measured phase - run multiple complete rounds and keep the fastest
+    let bestTimes: number[] = [];
+    let bestTotal = Infinity;
+
+    for (let run = 0; run < config.runsPerIteration; run++) {
+      const runStart = process.hrtime.bigint();
+      const runTimes: number[] = [];
+      for (let i = 0; i < config.iterations; i++) {
+        const start = process.hrtime.bigint();
+        parseFn(expression);
+        const elapsedNs = Number(process.hrtime.bigint() - start);
+        runTimes.push(elapsedNs / 1_000_000); // Convert nanoseconds to milliseconds
+      }
+      const runTotalNs = Number(process.hrtime.bigint() - runStart);
+      const runTotal = runTotalNs / 1_000_000;
+
+      if (runTotal < bestTotal) {
+        bestTotal = runTotal;
+        bestTimes = runTimes;
+      }
     }
+
+    const times = bestTimes;
 
     // Calculate statistics
     const totalMs = times.reduce((a, b) => a + b, 0);

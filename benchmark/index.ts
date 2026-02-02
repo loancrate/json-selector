@@ -16,6 +16,7 @@ import {
 
 const WARMUP_ITERATIONS = 1000;
 const ITERATIONS = 10000;
+const RUNS_PER_ITERATION = 3;
 const DEFAULT_THRESHOLD = 10;
 
 function printHelp(): void {
@@ -93,6 +94,7 @@ function main(): void {
   const config: BenchmarkConfig = {
     warmupIterations: WARMUP_ITERATIONS,
     iterations: ITERATIONS,
+    runsPerIteration: RUNS_PER_ITERATION,
   };
 
   const parser = getParser(library);
