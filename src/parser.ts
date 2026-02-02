@@ -129,32 +129,7 @@ export class Parser {
     }
 
     switch (token.type) {
-      case TokenType.NOT:
-        this.ts.advance();
-        return {
-          type: "not",
-          expression: this.expression(Parser.BINDING_POWER[TokenType.NOT]),
-        };
-
-      case TokenType.AT:
-        this.ts.advance();
-        return CURRENT_NODE;
-
-      case TokenType.DOLLAR:
-        this.ts.advance();
-        return ROOT_NODE;
-
-      case TokenType.BACKTICK: {
-        this.ts.advance();
-        const value = this.parseJsonValue();
-        this.ts.consume(TokenType.BACKTICK);
-        return { type: "literal", value };
-      }
-
-      case TokenType.RAW_STRING:
-        this.ts.advance();
-        return { type: "literal", value: token.value };
-
+      // Hot path: field names (most common)
       case TokenType.IDENTIFIER:
         this.ts.advance();
         return { type: "identifier", id: token.value };
@@ -163,12 +138,12 @@ export class Parser {
         this.ts.advance();
         return { type: "identifier", id: token.value };
 
-      case TokenType.LPAREN: {
+      case TokenType.AT:
         this.ts.advance();
-        const expr = this.expression(0);
-        this.ts.consume(TokenType.RPAREN);
-        return expr;
-      }
+        return CURRENT_NODE;
+
+      case TokenType.LBRACKET:
+        return this.parseLeadingBracket();
 
       case TokenType.FLATTEN_BRACKET: {
         // Leading [] applies to @
@@ -180,11 +155,37 @@ export class Parser {
         return this.parseProjectionRHS(flattenNode);
       }
 
-      case TokenType.LBRACKET:
-        return this.parseLeadingBracket();
-
       case TokenType.FILTER_BRACKET:
         return this.parseLeadingFilter();
+
+      case TokenType.DOLLAR:
+        this.ts.advance();
+        return ROOT_NODE;
+
+      case TokenType.RAW_STRING:
+        this.ts.advance();
+        return { type: "literal", value: token.value };
+
+      case TokenType.BACKTICK: {
+        this.ts.advance();
+        const value = this.parseJsonValue();
+        this.ts.consume(TokenType.BACKTICK);
+        return { type: "literal", value };
+      }
+
+      case TokenType.NOT:
+        this.ts.advance();
+        return {
+          type: "not",
+          expression: this.expression(Parser.BINDING_POWER[TokenType.NOT]),
+        };
+
+      case TokenType.LPAREN: {
+        this.ts.advance();
+        const expr = this.expression(0);
+        this.ts.consume(TokenType.RPAREN);
+        return expr;
+      }
 
       default:
         throw new Error(
@@ -199,7 +200,29 @@ export class Parser {
    */
   private led(left: JsonSelector, token: Token): JsonSelector {
     switch (token.type) {
-      case TokenType.PIPE: // bp=1
+      // Hot path: field access (most common!)
+      case TokenType.DOT: {
+        this.ts.advance();
+        const field = this.parseIdentifier();
+        return { type: "fieldAccess", expression: left, field };
+      }
+
+      case TokenType.LBRACKET:
+        return this.parseBracketExpression(left);
+
+      case TokenType.FLATTEN_BRACKET: {
+        this.ts.consume(TokenType.FLATTEN_BRACKET);
+        const flattenNode: JsonSelector = {
+          type: "flatten",
+          expression: left,
+        };
+        return this.parseProjectionRHS(flattenNode);
+      }
+
+      case TokenType.FILTER_BRACKET:
+        return this.parseFilterExpression(left);
+
+      case TokenType.PIPE:
         this.ts.advance();
         return {
           type: "pipe",
@@ -207,15 +230,7 @@ export class Parser {
           rhs: this.expression(Parser.BINDING_POWER[TokenType.PIPE]),
         };
 
-      case TokenType.OR: // bp=3
-        this.ts.advance();
-        return {
-          type: "or",
-          lhs: left,
-          rhs: this.expression(Parser.BINDING_POWER[TokenType.OR]),
-        };
-
-      case TokenType.AND: // bp=4
+      case TokenType.AND:
         this.ts.advance();
         return {
           type: "and",
@@ -223,7 +238,15 @@ export class Parser {
           rhs: this.expression(Parser.BINDING_POWER[TokenType.AND]),
         };
 
-      case TokenType.EQ: // bp=7
+      case TokenType.OR:
+        this.ts.advance();
+        return {
+          type: "or",
+          lhs: left,
+          rhs: this.expression(Parser.BINDING_POWER[TokenType.OR]),
+        };
+
+      case TokenType.EQ:
       case TokenType.NEQ:
       case TokenType.LT:
       case TokenType.LTE:
@@ -238,29 +261,6 @@ export class Parser {
           rhs: this.expression(Parser.BINDING_POWER[token.type]),
         };
       }
-
-      case TokenType.FLATTEN_BRACKET: {
-        // bp=9
-        this.ts.consume(TokenType.FLATTEN_BRACKET);
-        const flattenNode: JsonSelector = {
-          type: "flatten",
-          expression: left,
-        };
-        return this.parseProjectionRHS(flattenNode);
-      }
-
-      case TokenType.FILTER_BRACKET: // bp=21
-        return this.parseFilterExpression(left);
-
-      case TokenType.DOT: {
-        // bp=40
-        this.ts.advance();
-        const field = this.parseIdentifier();
-        return { type: "fieldAccess", expression: left, field };
-      }
-
-      case TokenType.LBRACKET: // bp=55
-        return this.parseBracketExpression(left);
 
       default:
         throw new Error(
