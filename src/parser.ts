@@ -1,6 +1,6 @@
 import { JsonValue } from "type-fest";
 import { JsonSelector, JsonSelectorCompareOperator } from "./ast";
-import { TokenStream } from "./lexer";
+import { TokenStream, TokenType } from "./lexer";
 
 /**
  * Pratt Parser for JSON Selectors
@@ -18,55 +18,58 @@ export class Parser {
   private static readonly PROJECTION_STOP_THRESHOLD = 10;
 
   // Binding power table (higher = tighter binding)
-  private static readonly BINDING_POWER: Record<string, number> = {
-    // Terminators (lowest precedence)
-    eof: 0,
-    rparen: 0,
-    rbracket: 0,
-    rbrace: 0,
-    comma: 0,
+  // Use array indexed by TokenType for fast lookup
+  private static readonly BINDING_POWER: number[] = (() => {
+    const bp: number[] = new Array<number>(70).fill(0);
+
+    // Terminators (lowest precedence) - already 0
+    // TokenType.RPAREN, RBRACKET, RBRACE, COMMA - all 0
 
     // Binary operators (low to high)
-    pipe: 1, // |
-    or: 3, // ||
-    and: 4, // &&
+    bp[TokenType.PIPE] = 1; // |
+    bp[TokenType.OR] = 3; // ||
+    bp[TokenType.AND] = 4; // &&
 
     // Comparison operators (all same precedence - non-associative, cannot chain)
-    eq: 7, // ==
-    neq: 7, // !=
-    lt: 7, // <
-    lte: 7, // <=
-    gt: 7, // >
-    gte: 7, // >=
+    bp[TokenType.EQ] = 7; // ==
+    bp[TokenType.NEQ] = 7; // !=
+    bp[TokenType.LT] = 7; // <
+    bp[TokenType.LTE] = 7; // <=
+    bp[TokenType.GT] = 7; // >
+    bp[TokenType.GTE] = 7; // >=
 
     // Projection operators
     // flatten has lower bp (9) than star/filter to allow chaining: foo[*][] or foo[?x][].bar
-    flatten: 9, // []
-    star: 20, // [*]
-    filterBracket: 21, // [?...]
+    // flatten is handled specially in getBindingPower()
+    bp[TokenType.FILTER_BRACKET] = 21; // [?...]
 
     // Postfix operators (high precedence)
-    dot: 40, // .
+    bp[TokenType.DOT] = 40; // .
 
     // Prefix operators
-    not: 45, // !
+    bp[TokenType.NOT] = 45; // !
 
-    // Bracket access (highest)
-    lbracket: 55, // [ (for index/slice/id access)
-  };
+    // Bracket access (highest) - handled specially in getBindingPower()
+
+    return bp;
+  })();
+
+  // Special binding powers for context-dependent tokens
+  private static readonly FLATTEN_BP = 9;
+  private static readonly STAR_BP = 20;
+  private static readonly LBRACKET_BP = 55;
 
   // Comparison operator token to AST operator mapping
-  private static readonly COMPARE_OPS: Record<
-    string,
-    JsonSelectorCompareOperator
-  > = {
-    lte: "<=",
-    gte: ">=",
-    eq: "==",
-    neq: "!=",
-    lt: "<",
-    gt: ">",
-  };
+  private static readonly COMPARE_OPS: JsonSelectorCompareOperator[] = (() => {
+    const ops = new Array<JsonSelectorCompareOperator>(70);
+    ops[TokenType.LTE] = "<=";
+    ops[TokenType.GTE] = ">=";
+    ops[TokenType.EQ] = "==";
+    ops[TokenType.NEQ] = "!=";
+    ops[TokenType.LT] = "<";
+    ops[TokenType.GT] = ">";
+    return ops;
+  })();
 
   constructor(input: string) {
     this.ts = new TokenStream(input);
@@ -112,21 +115,21 @@ export class Parser {
    */
   private getBindingPower(): number {
     const token = this.ts.peek();
-    if (!token || !token.type) return 0;
+    if (!token) return 0;
 
     // Brackets need lookahead to determine their binding power:
     // - [] (flatten) → bp=9 (low, allows chaining after projections)
     // - [*] (star) → bp=20 (medium, projection operator)
     // - [0], ['id'], [:] (index/id/slice) → bp=55 (highest, tightest binding)
-    if (token.type === "lbracket") {
+    if (token.type === TokenType.LBRACKET) {
       const bracketType = this.ts.peekBracketType();
       if (bracketType === "flatten") {
-        return Parser.BINDING_POWER.flatten;
+        return Parser.FLATTEN_BP;
       }
       if (bracketType === "star") {
-        return Parser.BINDING_POWER.star;
+        return Parser.STAR_BP;
       }
-      return Parser.BINDING_POWER.lbracket;
+      return Parser.LBRACKET_BP;
     }
 
     return Parser.BINDING_POWER[token.type] ?? 0;
@@ -143,51 +146,51 @@ export class Parser {
     }
 
     switch (token.type) {
-      case "not":
+      case TokenType.NOT:
         this.ts.advance();
         return {
           type: "not",
-          expression: this.expression(Parser.BINDING_POWER.not),
+          expression: this.expression(Parser.BINDING_POWER[TokenType.NOT]),
         };
 
-      case "at":
+      case TokenType.AT:
         this.ts.advance();
         return { type: "current" };
 
-      case "dollar":
+      case TokenType.DOLLAR:
         this.ts.advance();
         return { type: "root" };
 
-      case "backtick": {
+      case TokenType.BACKTICK: {
         this.ts.advance();
         const value = this.parseJsonValue();
-        this.ts.consume("backtick");
+        this.ts.consume(TokenType.BACKTICK);
         return { type: "literal", value };
       }
 
-      case "rawString":
+      case TokenType.RAW_STRING:
         this.ts.advance();
         return { type: "literal", value: token.value };
 
-      case "identifier":
+      case TokenType.IDENTIFIER:
         this.ts.advance();
-        return { type: "identifier", id: token.value };
+        return { type: "identifier", id: String(token.value) };
 
-      case "quotedString":
+      case TokenType.QUOTED_STRING:
         this.ts.advance();
-        return { type: "identifier", id: token.value };
+        return { type: "identifier", id: String(token.value) };
 
-      case "lparen": {
+      case TokenType.LPAREN: {
         this.ts.advance();
         const expr = this.expression(0);
-        this.ts.consume("rparen");
+        this.ts.consume(TokenType.RPAREN);
         return expr;
       }
 
-      case "lbracket":
+      case TokenType.LBRACKET:
         return this.parseLeadingBracket();
 
-      case "filterBracket":
+      case TokenType.FILTER_BRACKET:
         return this.parseLeadingFilter();
 
       default:
@@ -203,41 +206,41 @@ export class Parser {
    */
   private led(left: JsonSelector): JsonSelector {
     const token = this.ts.peek();
-    if (!token || !token.type) {
+    if (!token) {
       throw new Error("Unexpected end of input in led()");
     }
 
     switch (token.type) {
-      case "pipe": // bp=1
+      case TokenType.PIPE: // bp=1
         this.ts.advance();
         return {
           type: "pipe",
           lhs: left,
-          rhs: this.expression(Parser.BINDING_POWER.pipe),
+          rhs: this.expression(Parser.BINDING_POWER[TokenType.PIPE]),
         };
 
-      case "or": // bp=3
+      case TokenType.OR: // bp=3
         this.ts.advance();
         return {
           type: "or",
           lhs: left,
-          rhs: this.expression(Parser.BINDING_POWER.or),
+          rhs: this.expression(Parser.BINDING_POWER[TokenType.OR]),
         };
 
-      case "and": // bp=4
+      case TokenType.AND: // bp=4
         this.ts.advance();
         return {
           type: "and",
           lhs: left,
-          rhs: this.expression(Parser.BINDING_POWER.and),
+          rhs: this.expression(Parser.BINDING_POWER[TokenType.AND]),
         };
 
-      case "eq": // bp=7
-      case "neq":
-      case "lt":
-      case "lte":
-      case "gt":
-      case "gte": {
+      case TokenType.EQ: // bp=7
+      case TokenType.NEQ:
+      case TokenType.LT:
+      case TokenType.LTE:
+      case TokenType.GT:
+      case TokenType.GTE: {
         const compareOp = Parser.COMPARE_OPS[token.type];
         this.ts.advance();
         return {
@@ -248,17 +251,17 @@ export class Parser {
         };
       }
 
-      case "filterBracket": // bp=21
+      case TokenType.FILTER_BRACKET: // bp=21
         return this.parseFilterExpression(left);
 
-      case "dot": {
+      case TokenType.DOT: {
         // bp=40
         this.ts.advance();
         const field = this.parseIdentifier();
         return { type: "fieldAccess", expression: left, field };
       }
 
-      case "lbracket": // bp=55
+      case TokenType.LBRACKET: // bp=55
         return this.parseBracketExpression(left);
 
       default:
@@ -281,8 +284,8 @@ export class Parser {
 
     if (bracketType === "flatten") {
       // Leading [] applies to @
-      this.ts.consume("lbracket");
-      this.ts.consume("rbracket");
+      this.ts.consume(TokenType.LBRACKET);
+      this.ts.consume(TokenType.RBRACKET);
       const flattenNode: JsonSelector = {
         type: "flatten",
         expression: { type: "current" },
@@ -293,9 +296,9 @@ export class Parser {
 
     if (bracketType === "star") {
       // Leading [*] applies to @
-      this.ts.consume("lbracket");
-      this.ts.consume("star");
-      this.ts.consume("rbracket");
+      this.ts.consume(TokenType.LBRACKET);
+      this.ts.consume(TokenType.STAR);
+      this.ts.consume(TokenType.RBRACKET);
       const projectNode: JsonSelector = {
         type: "project",
         expression: { type: "current" },
@@ -312,9 +315,9 @@ export class Parser {
 
     if (bracketType === "index") {
       // Leading [0] applies to @
-      this.ts.consume("lbracket");
-      const index = parseInt(this.ts.consume("number").text, 10);
-      this.ts.consume("rbracket");
+      this.ts.consume(TokenType.LBRACKET);
+      const index = parseInt(this.ts.consume(TokenType.NUMBER).text, 10);
+      this.ts.consume(TokenType.RBRACKET);
       return {
         type: "indexAccess",
         expression: { type: "current" },
@@ -324,9 +327,9 @@ export class Parser {
 
     if (bracketType === "id") {
       // Leading ['id'] applies to @
-      this.ts.consume("lbracket");
-      const id = this.ts.consume("rawString").value;
-      this.ts.consume("rbracket");
+      this.ts.consume(TokenType.LBRACKET);
+      const id = String(this.ts.consume(TokenType.RAW_STRING).value);
+      this.ts.consume(TokenType.RBRACKET);
       return {
         type: "idAccess",
         expression: { type: "current" },
@@ -344,17 +347,11 @@ export class Parser {
    * Example: `[?x > 5]` means `@[?x > 5]`
    */
   private parseLeadingFilter(): JsonSelector {
-    // Lexer may emit either a single "filterBracket" token or separate "lbracket" + "question"
-    // Try the combined token first, fall back to consuming separately
-    if (this.ts.tryConsume("filterBracket")) {
-      // Combined [? token consumed
-    } else {
-      this.ts.consume("lbracket");
-      this.ts.consume("question");
-    }
+    // Lexer emits FILTER_BRACKET token for [?
+    this.ts.consume(TokenType.FILTER_BRACKET);
 
     const condition = this.expression(0);
-    this.ts.consume("rbracket");
+    this.ts.consume(TokenType.RBRACKET);
 
     const filterNode: JsonSelector = {
       type: "filter",
@@ -373,8 +370,8 @@ export class Parser {
 
     if (bracketType === "flatten") {
       // foo[] - flatten
-      this.ts.consume("lbracket");
-      this.ts.consume("rbracket");
+      this.ts.consume(TokenType.LBRACKET);
+      this.ts.consume(TokenType.RBRACKET);
       const flattenNode: JsonSelector = {
         type: "flatten",
         expression: left,
@@ -384,9 +381,9 @@ export class Parser {
 
     if (bracketType === "star") {
       // foo[*] - project
-      this.ts.consume("lbracket");
-      this.ts.consume("star");
-      this.ts.consume("rbracket");
+      this.ts.consume(TokenType.LBRACKET);
+      this.ts.consume(TokenType.STAR);
+      this.ts.consume(TokenType.RBRACKET);
       const projectNode: JsonSelector = {
         type: "project",
         expression: left,
@@ -403,9 +400,9 @@ export class Parser {
 
     if (bracketType === "index") {
       // foo[0] - index (no projection)
-      this.ts.consume("lbracket");
-      const index = parseInt(this.ts.consume("number").text, 10);
-      this.ts.consume("rbracket");
+      this.ts.consume(TokenType.LBRACKET);
+      const index = parseInt(this.ts.consume(TokenType.NUMBER).text, 10);
+      this.ts.consume(TokenType.RBRACKET);
       return {
         type: "indexAccess",
         expression: left,
@@ -415,9 +412,9 @@ export class Parser {
 
     if (bracketType === "id") {
       // foo['id'] - id access (no projection)
-      this.ts.consume("lbracket");
-      const id = this.ts.consume("rawString").value;
-      this.ts.consume("rbracket");
+      this.ts.consume(TokenType.LBRACKET);
+      const id = String(this.ts.consume(TokenType.RAW_STRING).value);
+      this.ts.consume(TokenType.RBRACKET);
       return {
         type: "idAccess",
         expression: left,
@@ -432,16 +429,11 @@ export class Parser {
    * Parse filter expression with LHS: foo[?bar]
    */
   private parseFilterExpression(left: JsonSelector): JsonSelector {
-    // Lexer may emit either a single "filterBracket" token or separate "lbracket" + "question"
-    if (this.ts.tryConsume("filterBracket")) {
-      // Combined [? token consumed
-    } else {
-      this.ts.consume("lbracket");
-      this.ts.consume("question");
-    }
+    // Lexer emits FILTER_BRACKET token for [?
+    this.ts.consume(TokenType.FILTER_BRACKET);
 
     const condition = this.expression(0);
-    this.ts.consume("rbracket");
+    this.ts.consume(TokenType.RBRACKET);
 
     const filterNode: JsonSelector = {
       type: "filter",
@@ -487,9 +479,9 @@ export class Parser {
     // Continue with dot, bracket, or filter - these are postfix operators
     // Parse them starting from @ (current context within the projection)
     if (
-      token.type === "dot" ||
-      token.type === "lbracket" ||
-      token.type === "filterBracket"
+      token.type === TokenType.DOT ||
+      token.type === TokenType.LBRACKET ||
+      token.type === TokenType.FILTER_BRACKET
     ) {
       // Start with @ (current element in projection) and build up the RHS expression
       let rhs: JsonSelector = { type: "current" };
@@ -527,32 +519,32 @@ export class Parser {
    * Returns a slice node (creates a projection when wrapped by parseProjectionRHS).
    */
   private parseSlice(left: JsonSelector): JsonSelector {
-    this.ts.consume("lbracket");
+    this.ts.consume(TokenType.LBRACKET);
 
     let start: number | undefined;
     let end: number | undefined;
     let step: number | undefined;
 
-    const startToken = this.ts.tryConsume("number");
+    const startToken = this.ts.tryConsume(TokenType.NUMBER);
     if (startToken) {
       start = parseInt(startToken.text, 10);
     }
 
-    this.ts.consume("colon");
+    this.ts.consume(TokenType.COLON);
 
-    const endToken = this.ts.tryConsume("number");
+    const endToken = this.ts.tryConsume(TokenType.NUMBER);
     if (endToken) {
       end = parseInt(endToken.text, 10);
     }
 
-    if (this.ts.tryConsume("colon")) {
-      const stepToken = this.ts.tryConsume("number");
+    if (this.ts.tryConsume(TokenType.COLON)) {
+      const stepToken = this.ts.tryConsume(TokenType.NUMBER);
       if (stepToken) {
         step = parseInt(stepToken.text, 10);
       }
     }
 
-    this.ts.consume("rbracket");
+    this.ts.consume(TokenType.RBRACKET);
 
     return {
       type: "slice",
@@ -564,11 +556,11 @@ export class Parser {
   }
 
   private parseIdentifier(): string {
-    const id = this.ts.tryConsume("identifier");
-    if (id) return id.value;
+    const id = this.ts.tryConsume(TokenType.IDENTIFIER);
+    if (id) return String(id.value);
 
-    const quoted = this.ts.tryConsume("quotedString");
-    if (quoted) return quoted.value;
+    const quoted = this.ts.tryConsume(TokenType.QUOTED_STRING);
+    if (quoted) return String(quoted.value);
 
     const token = this.ts.peek();
     throw new Error(`Expected identifier at position ${token?.offset}`);
@@ -578,33 +570,33 @@ export class Parser {
    * Parse JSON value inside backticks: `{...}`, `[...]`, `"..."`, etc.
    */
   private parseJsonValue(): JsonValue {
-    if (this.ts.tryConsume("null")) {
+    if (this.ts.tryConsume(TokenType.NULL)) {
       return null;
     }
 
-    if (this.ts.tryConsume("true")) {
+    if (this.ts.tryConsume(TokenType.TRUE)) {
       return true;
     }
 
-    if (this.ts.tryConsume("false")) {
+    if (this.ts.tryConsume(TokenType.FALSE)) {
       return false;
     }
 
-    const number = this.ts.tryConsume("number");
+    const number = this.ts.tryConsume(TokenType.NUMBER);
     if (number) {
       return parseFloat(number.text);
     }
 
-    const quoted = this.ts.tryConsume("quotedString");
+    const quoted = this.ts.tryConsume(TokenType.QUOTED_STRING);
     if (quoted) {
-      return quoted.value;
+      return String(quoted.value);
     }
 
-    if (this.ts.is("lbracket")) {
+    if (this.ts.is(TokenType.LBRACKET)) {
       return this.parseJsonArray();
     }
 
-    if (this.ts.is("lbrace")) {
+    if (this.ts.is(TokenType.LBRACE)) {
       return this.parseJsonObject();
     }
 
@@ -615,13 +607,13 @@ export class Parser {
 
   private parseUnquotedJsonString(): string {
     let result = "";
-    while (!this.ts.eof() && !this.ts.is("backtick")) {
+    while (!this.ts.eof() && !this.ts.is(TokenType.BACKTICK)) {
       const token = this.ts.peek();
       if (!token) break;
 
-      const quoted = this.ts.tryConsume("quotedString");
+      const quoted = this.ts.tryConsume(TokenType.QUOTED_STRING);
       if (quoted) {
-        result += quoted.value;
+        result += String(quoted.value);
       } else {
         result += token.text;
         this.ts.advance();
@@ -631,44 +623,44 @@ export class Parser {
   }
 
   private parseJsonArray(): JsonValue[] {
-    this.ts.consume("lbracket");
+    this.ts.consume(TokenType.LBRACKET);
 
     const values: JsonValue[] = [];
 
-    if (!this.ts.is("rbracket")) {
+    if (!this.ts.is(TokenType.RBRACKET)) {
       values.push(this.parseJsonValue());
 
-      while (this.ts.tryConsume("comma")) {
+      while (this.ts.tryConsume(TokenType.COMMA)) {
         values.push(this.parseJsonValue());
       }
     }
 
-    this.ts.consume("rbracket");
+    this.ts.consume(TokenType.RBRACKET);
     return values;
   }
 
   private parseJsonObject(): Record<string, JsonValue> {
-    this.ts.consume("lbrace");
+    this.ts.consume(TokenType.LBRACE);
 
     const obj: Record<string, JsonValue> = {};
 
-    if (!this.ts.is("rbrace")) {
+    if (!this.ts.is(TokenType.RBRACE)) {
       const [key, value] = this.parseJsonMember();
       obj[key] = value;
 
-      while (this.ts.tryConsume("comma")) {
+      while (this.ts.tryConsume(TokenType.COMMA)) {
         const [k, v] = this.parseJsonMember();
         obj[k] = v;
       }
     }
 
-    this.ts.consume("rbrace");
+    this.ts.consume(TokenType.RBRACE);
     return obj;
   }
 
   private parseJsonMember(): [string, JsonValue] {
-    const key = this.ts.consume("quotedString").value;
-    this.ts.consume("colon");
+    const key = String(this.ts.consume(TokenType.QUOTED_STRING).value);
+    this.ts.consume(TokenType.COLON);
     const value = this.parseJsonValue();
     return [key, value];
   }
