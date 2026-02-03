@@ -15,10 +15,10 @@ export interface BenchmarkResult {
   name: string;
   expression: string;
   iterations: number;
-  totalMs: number;
-  avgMs: number;
-  minMs: number;
-  maxMs: number;
+  totalNs: number;
+  avgNs: number;
+  minNs: number;
+  maxNs: number;
   opsPerSec: number;
   stdDev: number;
   p50: number;
@@ -44,6 +44,7 @@ export interface BenchmarkMetadata {
 export interface BenchmarkConfig {
   warmupIterations: number;
   iterations: number;
+  runsPerIteration: number;
 }
 
 export interface BenchmarkRun {
@@ -55,8 +56,8 @@ export interface BenchmarkRun {
 export interface ComparisonResult {
   name: string;
   expression: string;
-  baselineAvgMs: number;
-  currentAvgMs: number;
+  baselineAvgNs: number;
+  currentAvgNs: number;
   changePercent: number;
   status: "ok" | "faster" | "slower";
 }
