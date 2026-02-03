@@ -1,7 +1,10 @@
 // Token type enum (numeric for performance)
 export const enum TokenType {
+  // Special
+  EOF = 0,
+
   // Delimiters
-  LPAREN = 1,
+  LPAREN,
   RPAREN,
   LBRACKET,
   RBRACKET,

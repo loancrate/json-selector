@@ -10,7 +10,6 @@ import {
   TrueToken,
 } from "./token";
 
-// Keyword mapping
 const KEYWORDS: Record<string, TokenType> = {
   null: TokenType.NULL,
   true: TokenType.TRUE,
@@ -25,7 +24,7 @@ export class Lexer {
   private input: string;
   private length: number;
   private pos: number = 0;
-  private current: Token | null;
+  private current: Token;
 
   constructor(input: string) {
     this.input = input;
@@ -34,28 +33,28 @@ export class Lexer {
   }
 
   /**
-   * Peek at current token without consuming
+   * Peek at current token without consuming.
    */
-  peek(): Token | null {
+  peek(): Token {
     return this.current;
   }
 
   /**
-   * Advance to next token and return it
+   * Advance to next token and return it.
    */
-  advance(): Token | null {
+  advance(): Token {
     this.current = this.scanNext();
     return this.current;
   }
 
   /**
-   * Consume current token if it matches type, throw otherwise
+   * Consume current token if it matches type, throw otherwise.
    */
   consume<T extends TokenType>(type: T): TokenTypeMap[T] {
     const token = this.peek();
-    if (!token || token.type !== type) {
+    if (token.type !== type) {
       throw new Error(
-        `Expected token type ${type} but got ${token ? `token type ${token.type}` : "EOF"} at position ${token?.offset || "end"}`,
+        `Expected token type ${type} but got token type ${token.type} at position ${token.offset}`,
       );
     }
     this.advance();
@@ -64,11 +63,11 @@ export class Lexer {
   }
 
   /**
-   * Try to consume token if it matches type, return null otherwise
+   * Try to consume token if it matches type, return null otherwise.
    */
   tryConsume<T extends TokenType>(type: T): TokenTypeMap[T] | null {
     const token = this.peek();
-    if (!token || token.type !== type) {
+    if (token.type !== type) {
       return null;
     }
     this.advance();
@@ -77,9 +76,9 @@ export class Lexer {
   }
 
   /**
-   * Get next token (null at EOF) - renamed from next() to scanNext()
+   * Get next token (EOF token at end of input)
    */
-  private scanNext(): Token | null {
+  private scanNext(): Token {
     let ch = -1;
     while (
       this.pos < this.length &&
@@ -92,7 +91,7 @@ export class Lexer {
     let singleType = 0;
     switch (ch) {
       case -1:
-        return null;
+        return { type: TokenType.EOF, text: "", offset: this.length };
       case 91: // [
         return this.scanBracket(start);
       case 124: // |
@@ -651,8 +650,8 @@ function isIdentStart(ch: number): boolean {
   return (
     (ch >= 65 && ch <= 90) || // A-Z
     (ch >= 97 && ch <= 122) || // a-z
-    ch === 95
-  ); // _
+    ch === 95 // _
+  );
 }
 
 function isIdentChar(ch: number): boolean {
@@ -660,6 +659,6 @@ function isIdentChar(ch: number): boolean {
     (ch >= 48 && ch <= 57) || // 0-9
     (ch >= 65 && ch <= 90) || // A-Z
     (ch >= 97 && ch <= 122) || // a-z
-    ch === 95
-  ); // _
+    ch === 95 // _
+  );
 }

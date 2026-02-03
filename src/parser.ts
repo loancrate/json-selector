@@ -85,9 +85,9 @@ export class Parser {
   parse(): JsonSelector {
     const result = this.expression(0);
     const token = this.lexer.peek();
-    if (token) {
+    if (token.type !== TokenType.EOF) {
       throw new Error(
-        `Unexpected token at position ${token?.offset}: ${token?.text}`,
+        `Unexpected token at position ${token.offset}: ${token.text}`,
       );
     }
     return result;
@@ -105,7 +105,7 @@ export class Parser {
 
     // Inline binding power check - hot path optimization
     let token = this.lexer.peek();
-    while (token && rbp < (TOKEN_BP[token.type] || 0)) {
+    while (token.type !== TokenType.EOF && rbp < TOKEN_BP[token.type]) {
       left = this.led(left, token);
       token = this.lexer.peek();
     }
@@ -119,7 +119,7 @@ export class Parser {
    */
   private nud(): JsonSelector {
     const token = this.lexer.peek();
-    if (!token) {
+    if (token.type === TokenType.EOF) {
       throw new Error("Unexpected end of input");
     }
 
@@ -323,7 +323,7 @@ export class Parser {
     this.lexer.consume(TokenType.LBRACKET);
 
     const token = this.lexer.peek();
-    switch (token?.type) {
+    switch (token.type) {
       case TokenType.STAR: {
         // Leading [*] applies to @
         this.lexer.consume(TokenType.STAR);
@@ -349,7 +349,7 @@ export class Parser {
 
       case TokenType.NUMBER: {
         const num = this.lexer.consume(TokenType.NUMBER).value;
-        if (this.lexer.peek()?.type === TokenType.COLON) {
+        if (this.lexer.peek().type === TokenType.COLON) {
           // Slice: [n:...]
           const sliceNode = this.parseSlice(CURRENT_NODE, num);
           return this.parseProjectionRHS(sliceNode);
@@ -371,7 +371,7 @@ export class Parser {
 
       default:
         throw new Error(
-          `Unexpected token after [ at position ${token?.offset}: ${token?.text}`,
+          `Unexpected token after [ at position ${token.offset}: ${token.text}`,
         );
     }
   }
@@ -408,7 +408,7 @@ export class Parser {
     this.lexer.consume(TokenType.LBRACKET);
 
     const token = this.lexer.peek();
-    switch (token?.type) {
+    switch (token.type) {
       case TokenType.STAR: {
         // foo[*] - project
         this.lexer.consume(TokenType.STAR);
@@ -434,7 +434,7 @@ export class Parser {
 
       case TokenType.NUMBER: {
         const num = this.lexer.consume(TokenType.NUMBER).value;
-        if (this.lexer.peek()?.type === TokenType.COLON) {
+        if (this.lexer.peek().type === TokenType.COLON) {
           // Slice: foo[n:...]
           const sliceNode = this.parseSlice(left, num);
           return this.parseProjectionRHS(sliceNode);
@@ -456,7 +456,7 @@ export class Parser {
 
       default:
         throw new Error(
-          `Unexpected token after [ at position ${token?.offset}: ${token?.text}`,
+          `Unexpected token after [ at position ${token.offset}: ${token.text}`,
         );
     }
   }
@@ -503,9 +503,9 @@ export class Parser {
   private parseProjectionRHS(projectionNode: JsonSelector): JsonSelector {
     // Check what comes next - inline binding power check
     const token = this.lexer.peek();
-    if (!token) return projectionNode;
+    if (token.type === TokenType.EOF) return projectionNode;
 
-    const nextBp = TOKEN_BP[token.type] || 0;
+    const nextBp = TOKEN_BP[token.type];
 
     // Terminators (bp < threshold) stop projection continuation
     if (nextBp < PROJECTION_STOP_BP) {
@@ -525,7 +525,10 @@ export class Parser {
 
       // Keep applying postfix operators until we hit a terminator
       let rhsToken = this.lexer.peek();
-      while (rhsToken && (TOKEN_BP[rhsToken.type] || 0) >= PROJECTION_STOP_BP) {
+      while (
+        rhsToken.type !== TokenType.EOF &&
+        TOKEN_BP[rhsToken.type] >= PROJECTION_STOP_BP
+      ) {
         rhs = this.led(rhs, rhsToken);
         rhsToken = this.lexer.peek();
       }
@@ -592,6 +595,6 @@ export class Parser {
     if (quoted) return quoted.value;
 
     const token = this.lexer.peek();
-    throw new Error(`Expected identifier at position ${token?.offset}`);
+    throw new Error(`Expected identifier at position ${token.offset}`);
   }
 }
