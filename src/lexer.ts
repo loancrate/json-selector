@@ -341,7 +341,9 @@ export class Lexer {
     }
 
     if (endPos >= this.length) {
-      throw new Error(`Unterminated string at position ${start}`);
+      throw new Error(
+        `Unterminated string at position ${start}: expected closing '`,
+      );
     }
 
     const text = this.input.slice(start, endPos + 1);
@@ -388,7 +390,9 @@ export class Lexer {
     }
 
     if (endPos >= this.length) {
-      throw new Error(`Unterminated backtick literal at position ${start}`);
+      throw new Error(
+        `Unterminated JSON literal at position ${start}: expected closing \``,
+      );
     }
 
     const text = this.input.slice(start, endPos + 1);
@@ -478,7 +482,9 @@ export class Lexer {
         pos++;
       }
     }
-    throw new Error(`Unterminated string at position ${this.pos - 1}`);
+    throw new Error(
+      `Unterminated string at position ${this.pos - 1}: expected closing "`,
+    );
   }
 
   /**
