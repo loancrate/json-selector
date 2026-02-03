@@ -419,31 +419,26 @@ export class Lexer {
     let i = 0;
     while (i < inner.length) {
       if (inner[i] === "\\") {
-        if (i + 1 >= inner.length) {
-          value += "\\";
-          i++;
-        } else {
-          const next = inner[i + 1];
-
-          if (next === "u") {
-            // Unicode escape: \uXXXX (must have exactly 4 hex digits)
-            const hex = inner.slice(i + 2, i + 6);
-            if (/^[0-9a-fA-F]{4}$/.test(hex)) {
-              value += String.fromCharCode(parseInt(hex, 16));
-              i += 6;
-            } else {
-              throw new Error(
-                `Invalid unicode escape at position ${start + 1 + i}`,
-              );
-            }
-          } else if (next in ESCAPE_CHARS) {
-            value += ESCAPE_CHARS[next];
-            i += 2;
+        // It's impossible to have a backslash at end due to scanQuotedStringEnd
+        const next = inner[i + 1];
+        if (next === "u") {
+          // Unicode escape: \uXXXX (must have exactly 4 hex digits)
+          const hex = inner.slice(i + 2, i + 6);
+          if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+            value += String.fromCharCode(parseInt(hex, 16));
+            i += 6;
           } else {
-            // Unknown escape, keep both chars
-            value += "\\" + next;
-            i += 2;
+            throw new Error(
+              `Invalid unicode escape at position ${start + 1 + i}`,
+            );
           }
+        } else if (next in ESCAPE_CHARS) {
+          value += ESCAPE_CHARS[next];
+          i += 2;
+        } else {
+          // Unknown escape, keep both chars
+          value += "\\" + next;
+          i += 2;
         }
       } else {
         value += inner[i];
