@@ -201,11 +201,8 @@ export class Lexer {
    * Scan [, [?, or []
    */
   private scanBracket(start: number): Token {
-    this.pos++; // consume [
-    const nextCh =
-      this.pos < this.length ? this.input.charCodeAt(this.pos) : -1;
-
-    if (nextCh === 63) {
+    const ch = this.advanceCharCode();
+    if (ch === 63) {
       // ?
       this.pos++;
       return {
@@ -214,7 +211,7 @@ export class Lexer {
         offset: start,
       };
     }
-    if (nextCh === 93) {
+    if (ch === 93) {
       // ]
       this.pos++;
       return {
@@ -234,8 +231,8 @@ export class Lexer {
    * Scan | or ||
    */
   private scanPipe(start: number): SymbolToken {
-    this.pos++; // consume |
-    if (this.pos < this.length && this.input.charCodeAt(this.pos) === 124) {
+    const ch = this.advanceCharCode(); // consume |
+    if (ch === 124) {
       // |
       this.pos++;
       return { type: TokenType.OR, text: "||", offset: start };
@@ -247,8 +244,8 @@ export class Lexer {
    * Scan ! or !=
    */
   private scanBang(start: number): SymbolToken {
-    this.pos++; // consume !
-    if (this.pos < this.length && this.input.charCodeAt(this.pos) === 61) {
+    const ch = this.advanceCharCode(); // consume !
+    if (ch === 61) {
       // =
       this.pos++;
       return { type: TokenType.NEQ, text: "!=", offset: start };
@@ -260,8 +257,8 @@ export class Lexer {
    * Scan < or <=
    */
   private scanLessThan(start: number): SymbolToken {
-    this.pos++; // consume <
-    if (this.pos < this.length && this.input.charCodeAt(this.pos) === 61) {
+    const ch = this.advanceCharCode(); // consume <
+    if (ch === 61) {
       // =
       this.pos++;
       return { type: TokenType.LTE, text: "<=", offset: start };
@@ -273,8 +270,8 @@ export class Lexer {
    * Scan > or >=
    */
   private scanGreaterThan(start: number): SymbolToken {
-    this.pos++; // consume >
-    if (this.pos < this.length && this.input.charCodeAt(this.pos) === 61) {
+    const ch = this.advanceCharCode(); // consume >
+    if (ch === 61) {
       // =
       this.pos++;
       return { type: TokenType.GTE, text: ">=", offset: start };
@@ -286,8 +283,8 @@ export class Lexer {
    * Scan ==
    */
   private scanEquals(start: number): SymbolToken {
-    this.pos++; // consume first =
-    if (this.pos < this.length && this.input.charCodeAt(this.pos) === 61) {
+    const ch = this.advanceCharCode(); // consume first =
+    if (ch === 61) {
       // =
       this.pos++;
       return { type: TokenType.EQ, text: "==", offset: start };
@@ -301,8 +298,8 @@ export class Lexer {
    * Scan &&
    */
   private scanAmpersand(start: number): SymbolToken {
-    this.pos++; // consume first &
-    if (this.pos < this.length && this.input.charCodeAt(this.pos) === 38) {
+    const ch = this.advanceCharCode(); // consume &
+    if (ch === 38) {
       // &
       this.pos++;
       return { type: TokenType.AND, text: "&&", offset: start };
@@ -421,7 +418,6 @@ export class Lexer {
     const inner = text.slice(1, -1); // remove quotes
     let value = "";
     let i = 0;
-
     while (i < inner.length) {
       if (inner[i] === "\\") {
         if (i + 1 >= inner.length) {
