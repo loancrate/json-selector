@@ -165,6 +165,7 @@ export class Parser {
         this.lexer.advance();
         const content = token.value.trim();
         try {
+          // Type assertion is safe as JSON.parse returns a JsonValue
           // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
           const value = JSON.parse(content) as JsonValue;
           return { type: "literal", value };

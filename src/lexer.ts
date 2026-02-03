@@ -74,6 +74,7 @@ export class Lexer {
       );
     }
     this.advance();
+    // Type assertion is safe due to the type check above
     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
     return token as TokenTypeMap[T];
   }
@@ -87,6 +88,7 @@ export class Lexer {
       return null;
     }
     this.advance();
+    // Type assertion is safe due to the type check above
     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
     return token as TokenTypeMap[T];
   }

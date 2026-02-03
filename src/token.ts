@@ -202,6 +202,7 @@ export function describeTokenType(type: TokenType): string {
     case TokenType.FALSE:
       return "'false'";
     default:
+      // Exhaustive safety check
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       return `unknown token ${type}`;
   }
