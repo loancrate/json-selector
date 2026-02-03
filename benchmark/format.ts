@@ -1,6 +1,20 @@
 /* eslint-disable no-console */
 
-import type { BenchmarkResult, BenchmarkRun } from "./types";
+import type {
+  BenchmarkResult,
+  BenchmarkRun,
+  CategorizedResults,
+} from "./types";
+
+// Prefixes that identify isolated node type benchmarks
+const ISOLATED_PREFIXES = [
+  "primitive:",
+  "access:",
+  "collection:",
+  "logical:",
+  "syntax:",
+  "composition:",
+];
 
 export function formatMicroseconds(ns: number): string {
   const us = ns / 1000; // Convert nanoseconds to microseconds
@@ -19,45 +33,82 @@ export function formatOpsPerSec(ops: number): string {
   return ops.toLocaleString("en-US");
 }
 
+export interface PrintOptions {
+  compact?: boolean;
+}
+
+function truncate(str: string, maxLen: number): string {
+  return str.length <= maxLen ? str : str.slice(0, maxLen - 1) + "…";
+}
+
+function getColumnWidths(
+  results: BenchmarkResult[],
+  compact: boolean,
+): { nameWidth: number; exprWidth: number } {
+  return {
+    nameWidth: compact
+      ? 30
+      : Math.max(25, ...results.map((r) => r.name.length)),
+    exprWidth: compact
+      ? 40
+      : Math.max(35, ...results.map((r) => r.expression.length)),
+  };
+}
+
 export function printResults(
   title: string,
   results: BenchmarkResult[],
   library?: string,
+  options: PrintOptions = {},
 ): void {
+  const { compact = false } = options;
   const sectionTitle = library ? `${title} [${library}]` : title;
-  console.log("\n" + "=".repeat(140));
-  console.log(sectionTitle);
-  console.log("=".repeat(140));
+  const { nameWidth, exprWidth } = getColumnWidths(results, compact);
 
-  // Calculate column widths
-  const nameWidth = Math.max(25, ...results.map((r) => r.name.length));
-  const exprWidth = Math.max(35, ...results.map((r) => r.expression.length));
+  // Build columns based on mode
+  const buildHeader = (): string[] => {
+    const cols = [
+      "Name".padEnd(nameWidth),
+      "Expression".padEnd(exprWidth),
+      "Avg (μs)".padStart(10),
+    ];
+    if (!compact) {
+      cols.push("StdDev".padStart(10), "Min (μs)".padStart(10));
+    }
+    cols.push("p99 (μs)".padStart(10), "Ops/sec".padStart(12));
+    return cols;
+  };
 
-  // Print header
-  const header = [
-    "Name".padEnd(nameWidth),
-    "Expression".padEnd(exprWidth),
-    "Avg (μs)".padStart(10),
-    "StdDev".padStart(10),
-    "Min (μs)".padStart(10),
-    "p99 (μs)".padStart(10),
-    "Ops/sec".padStart(12),
-  ].join(" │ ");
-  console.log(header);
-  console.log("─".repeat(140));
-
-  // Print results
-  for (const result of results) {
-    const row = [
-      result.name.padEnd(nameWidth),
-      result.expression.slice(0, exprWidth).padEnd(exprWidth),
+  const buildRow = (result: BenchmarkResult): string[] => {
+    const cols = [
+      truncate(result.name, nameWidth).padEnd(nameWidth),
+      truncate(result.expression, exprWidth).padEnd(exprWidth),
       formatMicroseconds(result.avgNs).padStart(10),
-      formatMicroseconds(result.stdDev).padStart(10),
-      formatMicroseconds(result.minNs).padStart(10),
+    ];
+    if (!compact) {
+      cols.push(
+        formatMicroseconds(result.stdDev).padStart(10),
+        formatMicroseconds(result.minNs).padStart(10),
+      );
+    }
+    cols.push(
       formatMicroseconds(result.p99).padStart(10),
       formatOpsPerSec(result.opsPerSec).padStart(12),
-    ].join(" │ ");
-    console.log(row);
+    );
+    return cols;
+  };
+
+  const header = buildHeader().join(" │ ");
+  const lineWidth = header.length;
+
+  console.log("\n" + "=".repeat(lineWidth));
+  console.log(sectionTitle);
+  console.log("=".repeat(lineWidth));
+  console.log(header);
+  console.log("─".repeat(lineWidth));
+
+  for (const result of results) {
+    console.log(buildRow(result).join(" │ "));
   }
   console.log();
 }
@@ -67,22 +118,26 @@ export function printSummary(
   scalingResults: BenchmarkResult[],
   realWorldResults: BenchmarkResult[],
   stressResults: BenchmarkResult[],
+  options: PrintOptions = {},
 ): void {
-  console.log("=".repeat(140));
-  console.log("SUMMARY");
-  console.log("=".repeat(140));
-  console.log(
-    `Total expressions tested: ${isolatedResults.length + scalingResults.length + realWorldResults.length + stressResults.length}`,
-  );
-  console.log();
-
-  // Percentile distribution for all tests
+  const { compact = false } = options;
   const allResults = [
     ...isolatedResults,
     ...scalingResults,
     ...realWorldResults,
     ...stressResults,
   ];
+
+  // Compact: fixed 114 chars (matches table). Full: capped at 140 chars.
+  const lineWidth = compact ? 114 : 140;
+
+  console.log("=".repeat(lineWidth));
+  console.log("SUMMARY");
+  console.log("=".repeat(lineWidth));
+  console.log(`Total expressions tested: ${allResults.length}`);
+  console.log();
+
+  // Percentile distribution for all tests
   const allP50s = allResults.map((r) => r.p50).sort((a, b) => a - b);
   const allP95s = allResults.map((r) => r.p95).sort((a, b) => a - b);
   const allP99s = allResults.map((r) => r.p99).sort((a, b) => a - b);
@@ -189,4 +244,48 @@ export function printSummary(
 
 export function toJSON(run: BenchmarkRun): string {
   return JSON.stringify(run, null, 2);
+}
+
+export function categorizeResults(
+  results: BenchmarkResult[],
+): CategorizedResults {
+  const isolated: BenchmarkResult[] = [];
+  const scaling: BenchmarkResult[] = [];
+  const realWorld: BenchmarkResult[] = [];
+  const stress: BenchmarkResult[] = [];
+
+  for (const result of results) {
+    if (result.name.startsWith("scale:")) {
+      scaling.push(result);
+    } else if (result.name.startsWith("real:")) {
+      realWorld.push(result);
+    } else if (result.name.startsWith("stress:")) {
+      stress.push(result);
+    } else if (ISOLATED_PREFIXES.some((p) => result.name.startsWith(p))) {
+      isolated.push(result);
+    } else {
+      // Unknown category - put in isolated as fallback
+      isolated.push(result);
+    }
+  }
+
+  return { isolated, scaling, realWorld, stress };
+}
+
+export function printAllResults(
+  results: CategorizedResults,
+  library: string,
+  options: PrintOptions,
+): void {
+  const { isolated, scaling, realWorld, stress } = results;
+  printResults("1. ISOLATED NODE TYPE BENCHMARKS", isolated, library, options);
+  printResults("2. COMPLEXITY SCALING BENCHMARKS", scaling, library, options);
+  printResults(
+    "3. REAL-WORLD EXPRESSION BENCHMARKS",
+    realWorld,
+    library,
+    options,
+  );
+  printResults("4. STRESS TEST BENCHMARKS", stress, library, options);
+  printSummary(isolated, scaling, realWorld, stress, options);
 }
