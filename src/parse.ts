@@ -1,7 +1,7 @@
 import { JsonSelector } from "./ast";
-import { parse } from "./__generated__/parser";
+import { Parser } from "./parser";
 
 export function parseJsonSelector(selectorExpression: string): JsonSelector {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  return parse(selectorExpression);
+  const parser = new Parser(selectorExpression);
+  return parser.parse();
 }

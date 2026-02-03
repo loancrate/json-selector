@@ -61,3 +61,10 @@ export interface ComparisonResult {
   changePercent: number;
   status: "ok" | "faster" | "slower";
 }
+
+export interface CategorizedResults {
+  isolated: BenchmarkResult[];
+  scaling: BenchmarkResult[];
+  realWorld: BenchmarkResult[];
+  stress: BenchmarkResult[];
+}

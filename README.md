@@ -20,7 +20,7 @@ This should be unambiguous relative to the existing grammar and semantics.
 
 In addition to the extensions above, this library offers the following features compared to [jmespath.js](https://github.com/jmespath/jmespath.js):
 
-- Written using Typescript and [Peggy](https://peggyjs.org/) for clarity and correctness
+- Written using TypeScript with a hand-written Pratt parser
 - Type definitions for the abstract syntax tree (AST) produced by the parser
 - Typed visitor pattern for accessing AST nodes
 - Formatting of an AST back into an expression string
@@ -79,31 +79,51 @@ and the [binding power
 table](https://github.com/jmespath/jmespath.js/blob/master/jmespath.js#L474-L501)
 from the source, we can reverse-engineer the operator precedence of JMESPath.
 
-Essentially, the expression grammar is structured as a left-hand side (LHS)
-expression followed by zero or more right-hand side (RHS) expressions (which are
-often projections on the result of the LHS). RHS expressions are consumed by the
-parser and projected onto the LHS as long as they have the same or higher
-binding power as the LHS. RHS expressions with lower binding power are projected
-onto the result of the overall expression to the left, as opposed to the nearest
-subexpression. For example, since dot (40) has a higher binding power than left
-bracket (55), `a.b.c['id'].d.e` is parsed and evaluated like
-`((a.b.c)['id']).d.e`. Binding power and precedence can be summarized as
-follows, in increasing order:
+The expression grammar has three categories of operators:
+
+**Logical and comparison operators** follow traditional precedence rules (from
+lowest to highest):
 
 - pipe: `|`
 - or: `||`
 - and: `&&`
 - compare: `<=`, `>=`, `<`, `>`, `==`, `!=`
-- not: `!`
-- flatten projection: `[]`
-- filter projection: `[?`
-- star/slice projection: `[*`, `[<number?>:`
-- index/ID access: `[<number>`, `['`
-- member access: `.`
+- not: `!` (prefix)
 
-However, as a [special
-case](https://github.com/jmespath/jmespath.js/blob/master/jmespath.js#L803-L805),
-member access can directly follow (act as RHS) for any projection.
+Higher-precedence operators bind more tightly. For example, `a || b && c`
+parses as `a || (b && c)`, and `a || b.c` parses as `a || (b.c)` because
+access operators have higher precedence than `||`.
+
+**Access operators** chain left-to-right as postfix operators:
+
+- member access: `.field`
+- index access: `[0]`, `[n:m]` (slices)
+- ID access: `['id']` (shorthand for `[?id == 'id'] | [0]`)
+
+For example, `a[0].b.c['id'].d.e` parses as `(((((a[0]).b).c)['id']).d).e` -
+each operator applies to the complete expression on its left, building up the
+chain step by step.
+
+**Projection operators** create projections that map over collections:
+
+- flatten: `[]` (flatten arrays)
+- filter: `[?condition]` (filter by condition)
+- star: `[*]` (map over array values)
+
+Projections terminate before logical, comparison, and pipe operators, but
+continue with access operators and can chain with other projections. For
+example:
+
+- `items[*].name` - projects over items, accessing name from each
+- `items[*].tags[]` - projects over items, then flattens tags arrays
+- `items[*] || []` - projection completes before the `||`, result is `(items[*]) || []`
+
+**Note on chained flattens**: Multiple flattens compound to flatten deeper
+levels. For example, on data `[[[1,2]], [[3,4]]]`:
+
+- `[]` gives `[[1,2], [3,4]]` (one level)
+- `[][]` gives `[1,2,3,4]` (two levels)
+- `[*][]` gives `[[1,2], [3,4]]` (projects then flattens once - not the same as `[][]`)
 
 ## License
 

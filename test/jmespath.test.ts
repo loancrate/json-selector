@@ -64,8 +64,9 @@ interface ErrorTestCase {
 
 function addTestSuitesFromFile(filename: string) {
   describe(filename, function () {
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
     const suites = JSON.parse(
-      fs.readFileSync(filename, { encoding: "utf8" })
+      fs.readFileSync(filename, { encoding: "utf8" }),
     ) as TestSuite[];
     let suiteNumber = 1;
     for (const suite of suites) {

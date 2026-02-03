@@ -4,7 +4,7 @@ import { writeFileSync } from "fs";
 import { parseArgs } from "util";
 import { getCompatibleCases } from "./cases";
 import { compareRuns, loadBenchmarkRun, printComparison } from "./compare";
-import { printResults, printSummary, toJSON } from "./format";
+import { categorizeResults, printAllResults, toJSON } from "./format";
 import { getLibraryDisplayName, getParser } from "./parsers";
 import { collectMetadata, runBenchmark } from "./run";
 import {
@@ -14,9 +14,9 @@ import {
   type BenchmarkRun,
 } from "./types";
 
-const WARMUP_ITERATIONS = 1000;
-const ITERATIONS = 10000;
-const RUNS_PER_ITERATION = 3;
+const DEFAULT_WARMUP_ITERATIONS = 1000;
+const DEFAULT_ITERATIONS = 10000;
+const DEFAULT_RUNS_PER_ITERATION = 3;
 const DEFAULT_THRESHOLD = 10;
 
 function printHelp(): void {
@@ -25,18 +25,25 @@ JSON Selector Parsing Performance Benchmark
 
 Usage:
   npm run benchmark                              Run and print results
+  npm run benchmark -- --compact                 Run with compact output (for PRs)
   npm run benchmark -- --output results.json     Run and save to JSON file
   npm run benchmark -- --json                    Print JSON to stdout
+  npm run benchmark -- --show results.json       Display saved JSON as tables
   npm run benchmark -- --compare a.json b.json   Compare two result files
   npm run benchmark -- --threshold 15            Set regression threshold (default: 10%)
   npm run benchmark -- --library jmespath        Benchmark a specific library
   npm run benchmark -- --help                    Show this help
 
 Options:
+  --compact             Compact output: elide long expressions, omit StdDev/Min
   --output <file>       Save results to JSON file
   --json                Output results as JSON to stdout (no console tables)
+  --show <file>         Display saved JSON results as formatted tables
   --compare <a> <b>     Compare two JSON result files (baseline vs current)
   --threshold <n>       Regression threshold percentage (default: 10)
+  --warmup <n>          Warmup iterations (default: 1000)
+  --iterations <n>      Measured iterations (default: 10000)
+  --runs <n>            Runs per iteration (default: 3)
   --library <name>      Library to benchmark (default: json-selector)
                         Options: json-selector, jmespath, typescript-jmespath
   --help                Show this help message
@@ -48,8 +55,13 @@ function main(): void {
     options: {
       output: { type: "string" },
       json: { type: "boolean", default: false },
+      compact: { type: "boolean", default: false },
+      show: { type: "string" },
       compare: { type: "boolean", default: false },
       threshold: { type: "string" },
+      warmup: { type: "string" },
+      iterations: { type: "string" },
+      runs: { type: "string" },
       library: { type: "string", default: "json-selector" },
       help: { type: "boolean", default: false },
     },
@@ -90,11 +102,37 @@ function main(): void {
     return;
   }
 
+  // Show mode - display saved JSON as tables
+  if (values.show) {
+    const run = loadBenchmarkRun(values.show);
+    const libraryDisplayName = getLibraryDisplayName(run.metadata.library);
+
+    console.log(
+      `\nJSON Selector Parsing Performance Benchmark [${libraryDisplayName}]`,
+    );
+    console.log(`From: ${values.show}`);
+    console.log(`Date: ${run.metadata.timestamp}`);
+    console.log(
+      `Config: ${run.config.iterations} iterations × ${run.config.runsPerIteration} passes\n`,
+    );
+
+    printAllResults(categorizeResults(run.results), libraryDisplayName, {
+      compact: values.compact,
+    });
+    return;
+  }
+
   // Run mode
   const config: BenchmarkConfig = {
-    warmupIterations: WARMUP_ITERATIONS,
-    iterations: ITERATIONS,
-    runsPerIteration: RUNS_PER_ITERATION,
+    warmupIterations: values.warmup
+      ? parseInt(values.warmup, 10)
+      : DEFAULT_WARMUP_ITERATIONS,
+    iterations: values.iterations
+      ? parseInt(values.iterations, 10)
+      : DEFAULT_ITERATIONS,
+    runsPerIteration: values.runs
+      ? parseInt(values.runs, 10)
+      : DEFAULT_RUNS_PER_ITERATION,
   };
 
   const parser = getParser(library);
@@ -105,7 +143,7 @@ function main(): void {
       `\nJSON Selector Parsing Performance Benchmark [${libraryDisplayName}]`,
     );
     console.log(
-      `Warmup: ${WARMUP_ITERATIONS} iterations | Measured: ${ITERATIONS} iterations × ${RUNS_PER_ITERATION} passes\n`,
+      `Warmup: ${config.warmupIterations} iterations | Measured: ${config.iterations} iterations × ${config.runsPerIteration} passes\n`,
     );
   }
 
@@ -135,27 +173,15 @@ function main(): void {
   }
 
   // Table output mode
-  printResults(
-    "1. ISOLATED NODE TYPE BENCHMARKS",
-    isolatedResults,
+  printAllResults(
+    {
+      isolated: isolatedResults,
+      scaling: scalingResults,
+      realWorld: realWorldResults,
+      stress: stressResults,
+    },
     libraryDisplayName,
-  );
-  printResults(
-    "2. COMPLEXITY SCALING BENCHMARKS",
-    scalingResults,
-    libraryDisplayName,
-  );
-  printResults(
-    "3. REAL-WORLD EXPRESSION BENCHMARKS",
-    realWorldResults,
-    libraryDisplayName,
-  );
-  printResults("4. STRESS TEST BENCHMARKS", stressResults, libraryDisplayName);
-  printSummary(
-    isolatedResults,
-    scalingResults,
-    realWorldResults,
-    stressResults,
+    { compact: values.compact },
   );
 
   // Save to file if requested
