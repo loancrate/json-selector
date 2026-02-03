@@ -132,13 +132,10 @@ export class Lexer {
       case 96: // `
         return this.scanBacktickLiteral(start);
       case 45: // - (negative number)
-        if (
-          this.pos + 1 < this.length &&
-          isDigit(this.input.charCodeAt(this.pos + 1))
-        ) {
-          return this.scanNumber(start);
-        }
-        break;
+        // Always delegate to scanNumber which will produce a better error
+        // message if not followed by a digit (e.g., "Invalid digit: 'x'" instead
+        // of "Unexpected character: '-'")
+        return this.scanNumber(start);
       case 40: // (
         singleType = TokenType.LPAREN;
         break;
@@ -498,8 +495,8 @@ export class Lexer {
 
     // Integer part (at least one digit required)
     if (!isDigit(ch)) {
-      const digit = this.input[this.pos];
-      throw new Error(`Invalid digit at position ${start}: '${digit}'`);
+      const digit = this.input[this.pos] ?? "end of input";
+      throw new Error(`Invalid digit at position ${start}: ${digit}`);
     }
 
     // Leading zero or digits
@@ -533,7 +530,8 @@ export class Lexer {
       }
       // Exponent digits
       if (!isDigit(ch)) {
-        throw new Error(`Invalid number at position ${start}`);
+        const digit = this.input[this.pos] ?? "end of input";
+        throw new Error(`Invalid number at position ${start}: ${digit}`);
       }
       while (isDigit(ch)) {
         ch = this.advanceCharCode();

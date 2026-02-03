@@ -462,6 +462,11 @@ export class Parser {
 
       // Update the projection to apply RHS to each element
       // [*] nodes already have a projection field, so update it directly
+      //
+      // SAFETY: This mutation is safe because projectionNode is freshly created
+      // in parseBracketExpression (line 335), parseFilterExpression (line 399),
+      // or parseSlice (line 508), and has not been shared or returned yet.
+      // Mutating here avoids allocating a new node for the common case of [*].bar
       if (projectionNode.type === "project") {
         projectionNode.projection = rhs;
         return projectionNode;
