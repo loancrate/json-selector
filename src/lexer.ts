@@ -97,13 +97,9 @@ export class Lexer {
    * Get next token (EOF token at end of input)
    */
   private scanNext(): Token {
-    let ch = -1;
-    while (this.pos < this.length) {
-      ch = this.input.charCodeAt(this.pos);
-      if (!isWhitespace(ch)) {
-        break;
-      }
-      this.pos++;
+    let ch = this.peekCharCode();
+    while (isWhitespace(ch)) {
+      ch = this.advanceCharCode();
     }
 
     const start = this.pos;
