@@ -557,12 +557,9 @@ export class Lexer {
   private scanIdentifier(
     start: number,
   ): StringToken | NullToken | TrueToken | FalseToken {
-    this.pos++; // consume first char
-    while (
-      this.pos < this.length &&
-      isIdentChar(this.input.charCodeAt(this.pos))
-    ) {
-      this.pos++;
+    let ch = this.advanceCharCode();
+    while (isIdentChar(ch)) {
+      ch = this.advanceCharCode();
     }
 
     const text = this.input.slice(start, this.pos);
@@ -603,7 +600,7 @@ export class Lexer {
   }
 
   private advanceCharCode(): number {
-    return this.pos + 1 < this.length ? this.input.charCodeAt(++this.pos) : -1;
+    return ++this.pos < this.length ? this.input.charCodeAt(this.pos) : -1;
   }
 }
 
