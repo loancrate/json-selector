@@ -138,7 +138,7 @@ export class Parser {
         return CURRENT_NODE;
 
       case TokenType.LBRACKET:
-        return this.parseLeadingBracket();
+        return this.parseBracketExpression();
 
       case TokenType.FLATTEN_BRACKET: {
         // Leading [] applies to @
@@ -151,7 +151,7 @@ export class Parser {
       }
 
       case TokenType.FILTER_BRACKET:
-        return this.parseLeadingFilter();
+        return this.parseFilterExpression();
 
       case TokenType.DOLLAR:
         this.lexer.advance();
@@ -309,101 +309,19 @@ export class Parser {
   }
 
   /**
-   * Parse leading bracket expressions (no LHS): [0], [:], [*], ['id']
+   * Parse bracket expression: foo[0], foo[:], foo[*], foo['id']
+   * Also handles leading brackets (no LHS): [0], [:], [*], ['id']
    *
    * When a bracket appears at the start of an expression or after an operator,
    * it implicitly applies to @ (current context). For example:
    * - `[0]` means `@[0]`
    * - `foo | [*]` means `foo | @[*]`
    *
-   * Note: [] (flatten) is handled separately via FLATTEN_BRACKET token in nud()
-   */
-  private parseLeadingBracket(): JsonSelector {
-    // Must be LBRACKET - consume it and check what follows
-    this.lexer.consume(TokenType.LBRACKET);
-
-    const token = this.lexer.peek();
-    switch (token.type) {
-      case TokenType.STAR: {
-        // Leading [*] applies to @
-        this.lexer.consume(TokenType.STAR);
-        this.lexer.consume(TokenType.RBRACKET);
-        const projectNode: JsonSelector = {
-          type: "project",
-          expression: CURRENT_NODE,
-          projection: CURRENT_NODE,
-        };
-        return this.parseProjectionRHS(projectNode);
-      }
-
-      case TokenType.RAW_STRING: {
-        // ID access: ['id']
-        const id = this.lexer.consume(TokenType.RAW_STRING).value;
-        this.lexer.consume(TokenType.RBRACKET);
-        return {
-          type: "idAccess",
-          expression: CURRENT_NODE,
-          id,
-        };
-      }
-
-      case TokenType.NUMBER: {
-        const num = this.lexer.consume(TokenType.NUMBER).value;
-        if (this.lexer.peek().type === TokenType.COLON) {
-          // Slice: [n:...]
-          const sliceNode = this.parseSlice(CURRENT_NODE, num);
-          return this.parseProjectionRHS(sliceNode);
-        }
-        // Index: [n]
-        this.lexer.consume(TokenType.RBRACKET);
-        return {
-          type: "indexAccess",
-          expression: CURRENT_NODE,
-          index: num,
-        };
-      }
-
-      case TokenType.COLON: {
-        // Slice starting with colon: [:n] or [:]
-        const sliceNode = this.parseSlice(CURRENT_NODE);
-        return this.parseProjectionRHS(sliceNode);
-      }
-
-      default:
-        throw new Error(
-          `Unexpected token after '[' at position ${token.offset}: ${token.text}`,
-        );
-    }
-  }
-
-  /**
-   * Parse leading filter expression (no LHS): [?...]
-   *
-   * When [? appears without a left-hand side, it implicitly applies to @ (current context).
-   * Example: `[?x > 5]` means `@[?x > 5]`
-   */
-  private parseLeadingFilter(): JsonSelector {
-    // Lexer emits FILTER_BRACKET token for [?
-    this.lexer.consume(TokenType.FILTER_BRACKET);
-
-    const condition = this.expression(0);
-    this.lexer.consume(TokenType.RBRACKET);
-
-    const filterNode: JsonSelector = {
-      type: "filter",
-      expression: CURRENT_NODE,
-      condition,
-    };
-
-    return this.parseProjectionRHS(filterNode);
-  }
-
-  /**
-   * Parse bracket expression with LHS: foo[0], foo[:], foo[*], foo['id']
-   *
    * Note: foo[] (flatten) is handled separately via FLATTEN_BRACKET token in led()
    */
-  private parseBracketExpression(left: JsonSelector): JsonSelector {
+  private parseBracketExpression(
+    left: JsonSelector = CURRENT_NODE,
+  ): JsonSelector {
     // Must be LBRACKET - consume it and check what follows
     this.lexer.consume(TokenType.LBRACKET);
 
@@ -462,9 +380,15 @@ export class Parser {
   }
 
   /**
-   * Parse filter expression with LHS: foo[?bar]
+   * Parse filter expression: foo[?bar]
+   * Also handles leading filter expression (no LHS): [?...]
+   *
+   * When [? appears without a left-hand side, it implicitly applies to @ (current context).
+   * Example: `[?x > 5]` means `@[?x > 5]`
    */
-  private parseFilterExpression(left: JsonSelector): JsonSelector {
+  private parseFilterExpression(
+    left: JsonSelector = CURRENT_NODE,
+  ): JsonSelector {
     // Lexer emits FILTER_BRACKET token for [?
     this.lexer.consume(TokenType.FILTER_BRACKET);
 
