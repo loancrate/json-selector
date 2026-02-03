@@ -491,74 +491,54 @@ export class Lexer {
    * Scan number: -?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
    */
   private scanNumber(start: number): NumberToken {
+    let ch = this.peekCharCode();
+
     // Optional negative sign
-    if (this.input.charCodeAt(this.pos) === 45) {
-      // -
-      this.pos++;
+    if (ch === 45) {
+      ch = this.advanceCharCode();
     }
 
     // Integer part (at least one digit required)
-    if (this.pos >= this.length || !isDigit(this.input.charCodeAt(this.pos))) {
-      throw new Error(`Invalid number at position ${start}`);
+    if (!isDigit(ch)) {
+      const digit = this.input[this.pos];
+      throw new Error(`Invalid digit at position ${start}: '${digit}'`);
     }
 
     // Leading zero or digits
-    if (this.input.charCodeAt(this.pos) === 48) {
-      // 0
-      this.pos++;
+    if (ch === 48) {
+      ch = this.advanceCharCode();
     } else {
       // 1-9 followed by any digits
-      while (
-        this.pos < this.length &&
-        isDigit(this.input.charCodeAt(this.pos))
-      ) {
-        this.pos++;
+      while (isDigit(ch)) {
+        ch = this.advanceCharCode();
       }
     }
 
     // Optional decimal part
     if (
-      this.pos < this.length &&
-      this.input.charCodeAt(this.pos) === 46 && // .
+      ch === 46 && // .
       this.pos + 1 < this.length &&
       isDigit(this.input.charCodeAt(this.pos + 1))
     ) {
-      this.pos++; // consume .
-      while (
-        this.pos < this.length &&
-        isDigit(this.input.charCodeAt(this.pos))
-      ) {
-        this.pos++;
+      ch = this.advanceCharCode();
+      while (isDigit(ch)) {
+        ch = this.advanceCharCode();
       }
     }
 
-    // Optional exponent part
-    if (this.pos < this.length) {
-      const ch = this.input.charCodeAt(this.pos);
-      if (ch === 101 || ch === 69) {
-        // e or E
-        this.pos++;
-        // Optional sign
-        if (this.pos < this.length) {
-          const sign = this.input.charCodeAt(this.pos);
-          if (sign === 43 || sign === 45) {
-            // + or -
-            this.pos++;
-          }
-        }
-        // Exponent digits
-        if (
-          this.pos >= this.length ||
-          !isDigit(this.input.charCodeAt(this.pos))
-        ) {
-          throw new Error(`Invalid number at position ${start}`);
-        }
-        while (
-          this.pos < this.length &&
-          isDigit(this.input.charCodeAt(this.pos))
-        ) {
-          this.pos++;
-        }
+    // Optional exponent part: e or E
+    if (ch === 101 || ch === 69) {
+      ch = this.advanceCharCode();
+      // Optional sign: + or -
+      if (ch === 43 || ch === 45) {
+        ch = this.advanceCharCode();
+      }
+      // Exponent digits
+      if (!isDigit(ch)) {
+        throw new Error(`Invalid number at position ${start}`);
+      }
+      while (isDigit(ch)) {
+        ch = this.advanceCharCode();
       }
     }
 
@@ -616,6 +596,14 @@ export class Lexer {
     }
 
     return { type: TokenType.IDENTIFIER, text, value: text, offset: start };
+  }
+
+  private peekCharCode(): number {
+    return this.pos < this.length ? this.input.charCodeAt(this.pos) : -1;
+  }
+
+  private advanceCharCode(): number {
+    return this.pos + 1 < this.length ? this.input.charCodeAt(++this.pos) : -1;
   }
 }
 
