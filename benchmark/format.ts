@@ -123,8 +123,9 @@ export function printSummary(
   ];
   if (fieldScaling[0].result && fieldScaling[1].result) {
     const ratio = fieldScaling[1].result.avgNs / fieldScaling[0].result.avgNs;
+    const normalized = ratio / 50; // Compare to input scale
     console.log(
-      `  Field access: 50x depth = ${ratio.toFixed(1)}x slower (${ratio < 5 ? "sub-linear" : ratio < 60 ? "~linear" : "super-linear"})`,
+      `  Field access: 50x depth = ${ratio.toFixed(1)}x slower (${normalized < 0.9 ? "sub-linear" : normalized < 1.1 ? "~linear" : "super-linear"})`,
     );
   }
 
@@ -140,8 +141,9 @@ export function printSummary(
   ];
   if (pipeScaling[0].result && pipeScaling[1].result) {
     const ratio = pipeScaling[1].result.avgNs / pipeScaling[0].result.avgNs;
+    const normalized = ratio / 50; // Compare to input scale
     console.log(
-      `  Pipe chains:  50x length = ${ratio.toFixed(1)}x slower (${ratio < 60 ? "sub-linear" : ratio < 75 ? "~linear" : "super-linear"})`,
+      `  Pipe chains:  50x length = ${ratio.toFixed(1)}x slower (${normalized < 0.9 ? "sub-linear" : normalized < 1.1 ? "~linear" : "super-linear"})`,
     );
   }
 
@@ -161,8 +163,9 @@ export function printSummary(
   ];
   if (projScaling[0].result && projScaling[1].result) {
     const ratio = projScaling[1].result.avgNs / projScaling[0].result.avgNs;
+    const normalized = ratio / 25; // Compare to input scale
     console.log(
-      `  Projections:  25x depth = ${ratio.toFixed(1)}x slower (${ratio < 30 ? "sub-linear" : ratio < 40 ? "~linear" : "super-linear"})`,
+      `  Projections:  25x depth = ${ratio.toFixed(1)}x slower (${normalized < 0.9 ? "sub-linear" : normalized < 1.1 ? "~linear" : "super-linear"})`,
     );
   }
   console.log();
