@@ -8,8 +8,8 @@ export const enum TokenType {
   RPAREN,
   LBRACKET,
   RBRACKET,
-  LBRACE,
-  RBRACE,
+  LBRACE, // Reserved for future use (multi-select hashes)
+  RBRACE, // Reserved for future use (multi-select hashes)
   DOT,
   COMMA,
   COLON,
@@ -30,7 +30,7 @@ export const enum TokenType {
   AT,
   DOLLAR,
   STAR,
-  QUESTION,
+  QUESTION, // Reserved for future use (ternary operator)
   FILTER_BRACKET,
   FLATTEN_BRACKET,
 
@@ -131,79 +131,43 @@ export type TokenTypeMap = {
             : SymbolToken;
 };
 
+const TOKEN_DESCRIPTIONS: Record<TokenType, string> = {
+  [TokenType.EOF]: "end of input",
+  [TokenType.LPAREN]: "'('",
+  [TokenType.RPAREN]: "')'",
+  [TokenType.LBRACKET]: "'['",
+  [TokenType.RBRACKET]: "']'",
+  [TokenType.LBRACE]: "'{'",
+  [TokenType.RBRACE]: "'}'",
+  [TokenType.DOT]: "'.'",
+  [TokenType.COMMA]: "','",
+  [TokenType.COLON]: "':'",
+  [TokenType.PIPE]: "'|'",
+  [TokenType.OR]: "'||'",
+  [TokenType.AND]: "'&&'",
+  [TokenType.NOT]: "'!'",
+  [TokenType.EQ]: "'=='",
+  [TokenType.NEQ]: "'!='",
+  [TokenType.LT]: "'<'",
+  [TokenType.LTE]: "'<='",
+  [TokenType.GT]: "'>'",
+  [TokenType.GTE]: "'>='",
+  [TokenType.AT]: "'@'",
+  [TokenType.DOLLAR]: "'$'",
+  [TokenType.STAR]: "'*'",
+  [TokenType.QUESTION]: "'?'",
+  [TokenType.FILTER_BRACKET]: "'[?'",
+  [TokenType.FLATTEN_BRACKET]: "'[]'",
+  [TokenType.IDENTIFIER]: "identifier",
+  [TokenType.QUOTED_STRING]: "quoted string",
+  [TokenType.RAW_STRING]: "raw string",
+  [TokenType.BACKTICK_LITERAL]: "backtick literal",
+  [TokenType.NUMBER]: "number",
+  [TokenType.NULL]: "'null'",
+  [TokenType.TRUE]: "'true'",
+  [TokenType.FALSE]: "'false'",
+};
+
 export function describeTokenType(type: TokenType): string {
-  switch (type) {
-    case TokenType.EOF:
-      return "end of input";
-    case TokenType.LPAREN:
-      return "'('";
-    case TokenType.RPAREN:
-      return "')'";
-    case TokenType.LBRACKET:
-      return "'['";
-    case TokenType.RBRACKET:
-      return "']'";
-    case TokenType.LBRACE:
-      return "'{'";
-    case TokenType.RBRACE:
-      return "'}'";
-    case TokenType.DOT:
-      return "'.'";
-    case TokenType.COMMA:
-      return "','";
-    case TokenType.COLON:
-      return "':'";
-    case TokenType.PIPE:
-      return "'|'";
-    case TokenType.OR:
-      return "'||'";
-    case TokenType.AND:
-      return "'&&'";
-    case TokenType.NOT:
-      return "'!'";
-    case TokenType.EQ:
-      return "'=='";
-    case TokenType.NEQ:
-      return "'!='";
-    case TokenType.LT:
-      return "'<'";
-    case TokenType.LTE:
-      return "'<='";
-    case TokenType.GT:
-      return "'>'";
-    case TokenType.GTE:
-      return "'>='";
-    case TokenType.AT:
-      return "'@'";
-    case TokenType.DOLLAR:
-      return "'$'";
-    case TokenType.STAR:
-      return "'*'";
-    case TokenType.QUESTION:
-      return "'?'";
-    case TokenType.FILTER_BRACKET:
-      return "'[?'";
-    case TokenType.FLATTEN_BRACKET:
-      return "'[]'";
-    case TokenType.IDENTIFIER:
-      return "identifier";
-    case TokenType.QUOTED_STRING:
-      return "quoted string";
-    case TokenType.RAW_STRING:
-      return "raw string";
-    case TokenType.BACKTICK_LITERAL:
-      return "backtick literal";
-    case TokenType.NUMBER:
-      return "number";
-    case TokenType.NULL:
-      return "'null'";
-    case TokenType.TRUE:
-      return "'true'";
-    case TokenType.FALSE:
-      return "'false'";
-    default:
-      // Exhaustive safety check
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      return `unknown token ${type}`;
-  }
+  return TOKEN_DESCRIPTIONS[type] ?? `unknown token ${type}`;
 }
