@@ -78,7 +78,7 @@ npm run lint            # Run ESLint
 npm run lint:ci         # Run ESLint with JUnit output for CI
 ```
 
-**CRITICAL RULE**: NEVER suppress ESLint errors with `eslint-disable` comments. Always fix the actual type issues properly. If ESLint reports a type error, fix the types - don't silence the warning.
+**CRITICAL RULE**: Avoid suppressing ESLint errors with `eslint-disable` comments unless absolutely necessary. When you must suppress an error (e.g., for safe type assertions the type system cannot verify), add a comment explaining why it's safe.
 
 ### Benchmarking
 
