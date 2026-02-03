@@ -1,4 +1,5 @@
 import {
+  describeTokenType,
   FalseToken,
   NullToken,
   NumberToken,
@@ -53,8 +54,10 @@ export class Lexer {
   consume<T extends TokenType>(type: T): TokenTypeMap[T] {
     const token = this.peek();
     if (token.type !== type) {
+      const expected = describeTokenType(type);
+      const actual = describeTokenType(token.type);
       throw new Error(
-        `Expected token type ${type} but got token type ${token.type} at position ${token.offset}`,
+        `Expected ${expected} but got ${actual} at position ${token.offset}`,
       );
     }
     this.advance();

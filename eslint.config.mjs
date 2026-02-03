@@ -43,6 +43,7 @@ export default [
         },
       ],
       "@typescript-eslint/require-await": "off",
+      curly: ["error", "all"],
       "no-console": "warn",
     },
   },

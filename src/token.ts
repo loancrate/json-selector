@@ -1,7 +1,7 @@
-// Token type enum (numeric for performance)
+// Token type enum
 export const enum TokenType {
   // Special
-  EOF = 0,
+  EOF,
 
   // Delimiters
   LPAREN,
@@ -130,3 +130,76 @@ export type TokenTypeMap = {
             ? FalseToken
             : SymbolToken;
 };
+
+export function describeTokenType(type: TokenType): string {
+  switch (type) {
+    case TokenType.EOF:
+      return "end of input";
+    case TokenType.LPAREN:
+      return "'('";
+    case TokenType.RPAREN:
+      return "')'";
+    case TokenType.LBRACKET:
+      return "'['";
+    case TokenType.RBRACKET:
+      return "']'";
+    case TokenType.LBRACE:
+      return "'{'";
+    case TokenType.RBRACE:
+      return "'}'";
+    case TokenType.DOT:
+      return "'.'";
+    case TokenType.COMMA:
+      return "','";
+    case TokenType.COLON:
+      return "':'";
+    case TokenType.PIPE:
+      return "'|'";
+    case TokenType.OR:
+      return "'||'";
+    case TokenType.AND:
+      return "'&&'";
+    case TokenType.NOT:
+      return "'!'";
+    case TokenType.EQ:
+      return "'=='";
+    case TokenType.NEQ:
+      return "'!='";
+    case TokenType.LT:
+      return "'<'";
+    case TokenType.LTE:
+      return "'<='";
+    case TokenType.GT:
+      return "'>'";
+    case TokenType.GTE:
+      return "'>='";
+    case TokenType.AT:
+      return "'@'";
+    case TokenType.DOLLAR:
+      return "'$'";
+    case TokenType.STAR:
+      return "'*'";
+    case TokenType.QUESTION:
+      return "'?'";
+    case TokenType.FILTER_BRACKET:
+      return "'[?'";
+    case TokenType.FLATTEN_BRACKET:
+      return "'[]'";
+    case TokenType.IDENTIFIER:
+      return "identifier";
+    case TokenType.QUOTED_STRING:
+      return "quoted string";
+    case TokenType.RAW_STRING:
+      return "raw string";
+    case TokenType.BACKTICK_LITERAL:
+      return "backtick literal";
+    case TokenType.NUMBER:
+      return "number";
+    case TokenType.NULL:
+      return "'null'";
+    case TokenType.TRUE:
+      return "'true'";
+    case TokenType.FALSE:
+      return "'false'";
+  }
+}

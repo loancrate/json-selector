@@ -303,7 +303,7 @@ export class Parser {
 
       default:
         throw new Error(
-          `Unexpected token in led() at position ${token.offset}: ${token.text}`,
+          `Unexpected token at position ${token.offset}: ${token.text}`,
         );
     }
   }
@@ -371,7 +371,7 @@ export class Parser {
 
       default:
         throw new Error(
-          `Unexpected token after [ at position ${token.offset}: ${token.text}`,
+          `Unexpected token after '[' at position ${token.offset}: ${token.text}`,
         );
     }
   }
@@ -456,7 +456,7 @@ export class Parser {
 
       default:
         throw new Error(
-          `Unexpected token after [ at position ${token.offset}: ${token.text}`,
+          `Unexpected token after '[' at position ${token.offset}: ${token.text}`,
         );
     }
   }
@@ -503,7 +503,9 @@ export class Parser {
   private parseProjectionRHS(projectionNode: JsonSelector): JsonSelector {
     // Check what comes next - inline binding power check
     const token = this.lexer.peek();
-    if (token.type === TokenType.EOF) return projectionNode;
+    if (token.type === TokenType.EOF) {
+      return projectionNode;
+    }
 
     const nextBp = TOKEN_BP[token.type];
 
@@ -589,10 +591,14 @@ export class Parser {
 
   private parseIdentifier(): string {
     const id = this.lexer.tryConsume(TokenType.IDENTIFIER);
-    if (id) return id.value;
+    if (id) {
+      return id.value;
+    }
 
     const quoted = this.lexer.tryConsume(TokenType.QUOTED_STRING);
-    if (quoted) return quoted.value;
+    if (quoted) {
+      return quoted.value;
+    }
 
     const token = this.lexer.peek();
     throw new Error(`Expected identifier at position ${token.offset}`);
