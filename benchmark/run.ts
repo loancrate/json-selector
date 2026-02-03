@@ -54,58 +54,58 @@ export function runBenchmark(
   config: BenchmarkConfig,
   parseFn: ParseFn,
 ): BenchmarkResult[] {
-  const results: BenchmarkResult[] = [];
+  // Store only the best result for each case
+  const bestResults: (BenchmarkResult | null)[] = cases.map(() => null);
 
-  for (const { name, expression } of cases) {
-    // Warmup phase
-    for (let i = 0; i < config.warmupIterations; i++) {
-      parseFn(expression);
-    }
+  for (let pass = 0; pass < config.runsPerIteration; pass++) {
+    for (let caseIndex = 0; caseIndex < cases.length; caseIndex++) {
+      const { name, expression } = cases[caseIndex];
 
-    // Measured phase - run multiple complete rounds and keep the fastest
-    let bestTimes: number[] = [];
-    let bestTotal = Infinity;
+      // Warmup only on first pass
+      if (pass === 0) {
+        for (let i = 0; i < config.warmupIterations; i++) {
+          parseFn(expression);
+        }
+      }
 
-    for (let run = 0; run < config.runsPerIteration; run++) {
-      const runStart = process.hrtime.bigint();
-      const runTimes: number[] = [];
+      // Measured iterations - compute statistics incrementally
+      const times: number[] = [];
       for (let i = 0; i < config.iterations; i++) {
         const start = process.hrtime.bigint();
         parseFn(expression);
         const elapsedNs = Number(process.hrtime.bigint() - start);
-        runTimes.push(elapsedNs / 1_000_000); // Convert nanoseconds to milliseconds
+        times.push(elapsedNs);
       }
-      const runTotalNs = Number(process.hrtime.bigint() - runStart);
-      const runTotal = runTotalNs / 1_000_000;
 
-      if (runTotal < bestTotal) {
-        bestTotal = runTotal;
-        bestTimes = runTimes;
+      // Compute statistics immediately
+      const totalNs = times.reduce((a, b) => a + b, 0);
+      const avgNs = totalNs / config.iterations;
+      const sortedTimes = [...times].sort((a, b) => a - b);
+
+      const result: BenchmarkResult = {
+        name,
+        expression,
+        iterations: config.iterations,
+        totalNs,
+        avgNs,
+        minNs: Math.min(...times),
+        maxNs: Math.max(...times),
+        opsPerSec: Math.round(config.iterations / (totalNs / 1_000_000_000)),
+        stdDev: calculateStdDev(times, avgNs),
+        p50: calculatePercentile(sortedTimes, 50),
+        p95: calculatePercentile(sortedTimes, 95),
+        p99: calculatePercentile(sortedTimes, 99),
+      };
+
+      // Keep if this is the best pass (lowest totalNs)
+      const current = bestResults[caseIndex];
+      if (current === null || result.totalNs < current.totalNs) {
+        bestResults[caseIndex] = result;
       }
     }
-
-    const times = bestTimes;
-
-    // Calculate statistics
-    const totalMs = times.reduce((a, b) => a + b, 0);
-    const avgMs = totalMs / config.iterations;
-    const sortedTimes = [...times].sort((a, b) => a - b);
-
-    results.push({
-      name,
-      expression,
-      iterations: config.iterations,
-      totalMs,
-      avgMs,
-      minMs: Math.min(...times),
-      maxMs: Math.max(...times),
-      opsPerSec: Math.round(config.iterations / (totalMs / 1000)),
-      stdDev: calculateStdDev(times, avgMs),
-      p50: calculatePercentile(sortedTimes, 50),
-      p95: calculatePercentile(sortedTimes, 95),
-      p99: calculatePercentile(sortedTimes, 99),
-    });
   }
 
-  return results;
+  return bestResults.filter(
+    (result): result is BenchmarkResult => result !== null,
+  );
 }

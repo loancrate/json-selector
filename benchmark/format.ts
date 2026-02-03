@@ -2,8 +2,8 @@
 
 import type { BenchmarkResult, BenchmarkRun } from "./types";
 
-export function formatMicroseconds(ms: number): string {
-  const us = ms * 1000; // Convert milliseconds to microseconds
+export function formatMicroseconds(ns: number): string {
+  const us = ns / 1000; // Convert nanoseconds to microseconds
   if (us < 1) {
     return us.toFixed(4);
   } else if (us < 10) {
@@ -51,9 +51,9 @@ export function printResults(
     const row = [
       result.name.padEnd(nameWidth),
       result.expression.slice(0, exprWidth).padEnd(exprWidth),
-      formatMicroseconds(result.avgMs).padStart(10),
+      formatMicroseconds(result.avgNs).padStart(10),
       formatMicroseconds(result.stdDev).padStart(10),
-      formatMicroseconds(result.minMs).padStart(10),
+      formatMicroseconds(result.minNs).padStart(10),
       formatMicroseconds(result.p99).padStart(10),
       formatOpsPerSec(result.opsPerSec).padStart(12),
     ].join(" │ ");
@@ -99,12 +99,12 @@ export function printSummary(
   console.log();
 
   // Slowest isolated node types
-  const sortedIsolated = [...isolatedResults].sort((a, b) => b.avgMs - a.avgMs);
+  const sortedIsolated = [...isolatedResults].sort((a, b) => b.avgNs - a.avgNs);
   console.log("Slowest isolated node types:");
   for (let i = 0; i < Math.min(5, sortedIsolated.length); i++) {
     const r = sortedIsolated[i];
     console.log(
-      `  ${i + 1}. ${r.name.padEnd(30)} ${formatMicroseconds(r.avgMs).padStart(8)} μs - ${r.expression}`,
+      `  ${i + 1}. ${r.name.padEnd(30)} ${formatMicroseconds(r.avgNs).padStart(8)} μs - ${r.expression}`,
     );
   }
   console.log();
@@ -122,7 +122,7 @@ export function printSummary(
     },
   ];
   if (fieldScaling[0].result && fieldScaling[1].result) {
-    const ratio = fieldScaling[1].result.avgMs / fieldScaling[0].result.avgMs;
+    const ratio = fieldScaling[1].result.avgNs / fieldScaling[0].result.avgNs;
     console.log(
       `  Field access: 50x depth = ${ratio.toFixed(1)}x slower (${ratio < 5 ? "sub-linear" : ratio < 60 ? "~linear" : "super-linear"})`,
     );
@@ -139,7 +139,7 @@ export function printSummary(
     },
   ];
   if (pipeScaling[0].result && pipeScaling[1].result) {
-    const ratio = pipeScaling[1].result.avgMs / pipeScaling[0].result.avgMs;
+    const ratio = pipeScaling[1].result.avgNs / pipeScaling[0].result.avgNs;
     console.log(
       `  Pipe chains:  50x length = ${ratio.toFixed(1)}x slower (${ratio < 60 ? "sub-linear" : ratio < 75 ? "~linear" : "super-linear"})`,
     );
@@ -160,7 +160,7 @@ export function printSummary(
     },
   ];
   if (projScaling[0].result && projScaling[1].result) {
-    const ratio = projScaling[1].result.avgMs / projScaling[0].result.avgMs;
+    const ratio = projScaling[1].result.avgNs / projScaling[0].result.avgNs;
     console.log(
       `  Projections:  25x depth = ${ratio.toFixed(1)}x slower (${ratio < 30 ? "sub-linear" : ratio < 40 ? "~linear" : "super-linear"})`,
     );
@@ -169,17 +169,17 @@ export function printSummary(
 
   // Real-world performance
   const avgRealWorld =
-    realWorldResults.reduce((sum, r) => sum + r.avgMs, 0) /
+    realWorldResults.reduce((sum, r) => sum + r.avgNs, 0) /
     realWorldResults.length;
   const slowestRealWorld = realWorldResults.reduce((max, r) =>
-    r.avgMs > max.avgMs ? r : max,
+    r.avgNs > max.avgNs ? r : max,
   );
   console.log("Real-world expressions:");
   console.log(
-    `  Average: ${formatMicroseconds(avgRealWorld)} μs (${Math.round(1000 / avgRealWorld).toLocaleString()} ops/sec)`,
+    `  Average: ${formatMicroseconds(avgRealWorld)} μs (${Math.round(1_000_000_000 / avgRealWorld).toLocaleString()} ops/sec)`,
   );
   console.log(
-    `  Slowest: ${slowestRealWorld.name} - ${formatMicroseconds(slowestRealWorld.avgMs)} μs`,
+    `  Slowest: ${slowestRealWorld.name} - ${formatMicroseconds(slowestRealWorld.avgNs)} μs`,
   );
   console.log();
 }

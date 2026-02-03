@@ -105,7 +105,7 @@ function main(): void {
       `\nJSON Selector Parsing Performance Benchmark [${libraryDisplayName}]`,
     );
     console.log(
-      `Warmup: ${WARMUP_ITERATIONS} iterations | Measured: ${ITERATIONS} iterations\n`,
+      `Warmup: ${WARMUP_ITERATIONS} iterations | Measured: ${ITERATIONS} iterations × ${RUNS_PER_ITERATION} passes\n`,
     );
   }
 

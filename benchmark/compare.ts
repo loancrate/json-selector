@@ -17,18 +17,18 @@ export function compareRuns(
   const results: ComparisonResult[] = [];
 
   // Create a map of baseline results by name for quick lookup
-  const baselineMap = new Map(baseline.results.map((r) => [r.name, r.avgMs]));
+  const baselineMap = new Map(baseline.results.map((r) => [r.name, r.avgNs]));
 
   for (const currentResult of current.results) {
-    const baselineAvgMs = baselineMap.get(currentResult.name);
+    const baselineAvgNs = baselineMap.get(currentResult.name);
 
-    if (baselineAvgMs === undefined) {
+    if (baselineAvgNs === undefined) {
       // Test exists in current but not baseline - treat as new test
       results.push({
         name: currentResult.name,
         expression: currentResult.expression,
-        baselineAvgMs: 0,
-        currentAvgMs: currentResult.avgMs,
+        baselineAvgNs: 0,
+        currentAvgNs: currentResult.avgNs,
         changePercent: 0,
         status: "ok",
       });
@@ -36,7 +36,7 @@ export function compareRuns(
     }
 
     const changePercent =
-      ((currentResult.avgMs - baselineAvgMs) / baselineAvgMs) * 100;
+      ((currentResult.avgNs - baselineAvgNs) / baselineAvgNs) * 100;
 
     let status: "ok" | "faster" | "slower" = "ok";
     if (changePercent < -threshold) {
@@ -48,8 +48,8 @@ export function compareRuns(
     results.push({
       name: currentResult.name,
       expression: currentResult.expression,
-      baselineAvgMs,
-      currentAvgMs: currentResult.avgMs,
+      baselineAvgNs,
+      currentAvgNs: currentResult.avgNs,
       changePercent,
       status,
     });
@@ -89,7 +89,7 @@ export function printComparison(
   // Print results
   for (const result of results) {
     const changeStr =
-      result.baselineAvgMs === 0
+      result.baselineAvgNs === 0
         ? "NEW"
         : (result.changePercent >= 0 ? "+" : "") +
           result.changePercent.toFixed(1) +
@@ -104,11 +104,11 @@ export function printComparison(
 
     const row = [
       result.name.padEnd(nameWidth),
-      (result.baselineAvgMs === 0
+      (result.baselineAvgNs === 0
         ? "-"
-        : formatMicroseconds(result.baselineAvgMs)
+        : formatMicroseconds(result.baselineAvgNs)
       ).padStart(10),
-      formatMicroseconds(result.currentAvgMs).padStart(10),
+      formatMicroseconds(result.currentAvgNs).padStart(10),
       changeStr.padStart(10),
       statusStr,
     ].join(" │ ");
