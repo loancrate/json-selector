@@ -201,5 +201,8 @@ export function describeTokenType(type: TokenType): string {
       return "'true'";
     case TokenType.FALSE:
       return "'false'";
+    default:
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+      return `unknown token ${type}`;
   }
 }

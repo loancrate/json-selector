@@ -83,10 +83,11 @@ export class Lexer {
    */
   private scanNext(): Token {
     let ch = -1;
-    while (
-      this.pos < this.length &&
-      isWhitespace((ch = this.input.charCodeAt(this.pos)))
-    ) {
+    while (this.pos < this.length) {
+      ch = this.input.charCodeAt(this.pos);
+      if (!isWhitespace(ch)) {
+        break;
+      }
       this.pos++;
     }
 
