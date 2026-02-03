@@ -1,6 +1,6 @@
 import assert from "assert";
 import { Lexer } from "../src/lexer";
-import { Token, TokenType } from "../src/token";
+import { describeTokenType, Token, TokenType } from "../src/token";
 
 /**
  * Collect all tokens from input (excluding EOF).
@@ -657,6 +657,14 @@ describe("Lexer", () => {
     test("tracks offsets with whitespace", () => {
       const toks = tokens("foo . bar");
       expect(toks.map((t) => t.offset)).toEqual([0, 4, 6]);
+    });
+  });
+
+  describe("describeTokenType", () => {
+    test("returns fallback for unknown token type", () => {
+      // Intentional bad cast to simulate unknown token type
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      expect(describeTokenType(9999 as TokenType)).toBe("unknown token 9999");
     });
   });
 
