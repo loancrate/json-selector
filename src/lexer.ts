@@ -17,6 +17,19 @@ const KEYWORDS: Record<string, TokenType> = {
   false: TokenType.FALSE,
 };
 
+// Escape sequence lookup for quoted strings
+const ESCAPE_CHARS: Record<string, string> = {
+  '"': '"',
+  "\\": "\\",
+  "/": "/",
+  b: "\b",
+  f: "\f",
+  n: "\n",
+  r: "\r",
+  t: "\t",
+  "`": "`",
+};
+
 /**
  * Hand-written lexer for JSON Selector expressions providing single token
  * lookahead.
@@ -412,67 +425,25 @@ export class Lexer {
           i++;
         } else {
           const next = inner[i + 1];
-          switch (next) {
-            case '"':
-              value += '"';
-              i += 2;
-              break;
-            case "\\":
-              value += "\\";
-              i += 2;
-              break;
-            case "/":
-              value += "/";
-              i += 2;
-              break;
-            case "b":
-              value += "\b";
-              i += 2;
-              break;
-            case "f":
-              value += "\f";
-              i += 2;
-              break;
-            case "n":
-              value += "\n";
-              i += 2;
-              break;
-            case "r":
-              value += "\r";
-              i += 2;
-              break;
-            case "t":
-              value += "\t";
-              i += 2;
-              break;
-            case "`":
-              value += "`";
-              i += 2;
-              break;
-            case "u":
-              // Unicode escape: \uXXXX (must have exactly 4 hex digits)
-              if (
-                i + 5 < inner.length &&
-                /[0-9a-fA-F]/.test(inner[i + 2]) &&
-                /[0-9a-fA-F]/.test(inner[i + 3]) &&
-                /[0-9a-fA-F]/.test(inner[i + 4]) &&
-                /[0-9a-fA-F]/.test(inner[i + 5])
-              ) {
-                const hex = inner.slice(i + 2, i + 6);
-                value += String.fromCharCode(parseInt(hex, 16));
-                i += 6;
-              } else {
-                // Invalid unicode escape - this is a syntax error
-                throw new Error(
-                  `Invalid unicode escape at position ${start + 1 + i}`,
-                );
-              }
-              break;
-            default:
-              // Unknown escape, keep both chars
-              value += "\\" + next;
-              i += 2;
-              break;
+
+          if (next === "u") {
+            // Unicode escape: \uXXXX (must have exactly 4 hex digits)
+            const hex = inner.slice(i + 2, i + 6);
+            if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+              value += String.fromCharCode(parseInt(hex, 16));
+              i += 6;
+            } else {
+              throw new Error(
+                `Invalid unicode escape at position ${start + 1 + i}`,
+              );
+            }
+          } else if (next in ESCAPE_CHARS) {
+            value += ESCAPE_CHARS[next];
+            i += 2;
+          } else {
+            // Unknown escape, keep both chars
+            value += "\\" + next;
+            i += 2;
           }
         }
       } else {
