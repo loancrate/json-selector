@@ -19,8 +19,7 @@
   "author": "Trevor Robinson",
   "sideEffects": false,
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "main": "dist/json-selector.umd.js",
   "module": "dist/json-selector.esm.js",
