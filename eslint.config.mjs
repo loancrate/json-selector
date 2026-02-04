@@ -5,7 +5,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["dist/**", "src/__generated__/**"],
+    ignores: ["dist/**"],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -16,7 +16,7 @@ export default [
         ...globals.es2020,
       },
       parserOptions: {
-        projectService: true,
+        project: "./tsconfig.json",
         tsconfigRootDir: import.meta.dirname,
       },
     },
