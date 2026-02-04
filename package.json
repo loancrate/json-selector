@@ -27,8 +27,10 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "node": "./dist/json-selector.umd.js",
       "import": "./dist/json-selector.esm.js",
-      "require": "./dist/json-selector.umd.js"
+      "require": "./dist/json-selector.umd.js",
+      "default": "./dist/json-selector.umd.js"
     }
   },
   "engines": {
