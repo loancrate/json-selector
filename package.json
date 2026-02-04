@@ -17,6 +17,7 @@
   },
   "license": "ISC",
   "author": "Trevor Robinson",
+  "sideEffects": false,
   "files": [
     "dist",
     "src"
@@ -24,13 +25,23 @@
   "main": "dist/json-selector.umd.js",
   "module": "dist/json-selector.esm.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/json-selector.esm.js",
+      "require": "./dist/json-selector.umd.js"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "benchmark": "tsx benchmark/index.ts",
     "build": "rimraf dist && rollup -c rollup.config.mjs",
     "format": "prettier --write .",
     "lint": "eslint src test benchmark",
     "lint:ci": "eslint src test benchmark --max-warnings 0 --format junit --output-file test-results/eslint/junit.xml",
-    "prepare": "husky && npm run build",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run test && npm run lint",
     "test": "jest",
     "test:ci": "jest --ci --runInBand"
@@ -68,7 +79,7 @@
     "typescript-eslint": "^8.48.0"
   },
   "lint-staged": {
-    "*.{ts,md}": "prettier --list-different",
+    "*.{ts,md}": "prettier --check",
     "*.ts": "eslint"
   },
   "publishConfig": {
