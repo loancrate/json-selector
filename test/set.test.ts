@@ -12,7 +12,7 @@ test("setWithJsonSelector", () => {
     const oldValue = setWithJsonSelector(
       parseJsonSelector("foo.bar['id'].value"),
       obj,
-      86
+      86,
     );
     expect(oldValue).toBe(42);
     expect(obj.foo.bar[0].value).toBe(86);
@@ -31,7 +31,7 @@ test("setWithJsonSelector", () => {
     const oldValue = setWithJsonSelector(
       parseJsonSelector("foo[].bar[?baz.kind == `primary`][].baz | [0].name"),
       obj,
-      newValue
+      newValue,
     );
     expect(oldValue).toStrictEqual(expectedOldValue);
     expect(obj.foo[1].bar[1].baz?.name).toBe(newValue);

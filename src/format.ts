@@ -28,7 +28,7 @@ const operatorPrecedence: { [type in JsonSelectorNodeType]?: number } = {
 function formatSubexpression(
   expr: JsonSelector,
   options: Partial<FormatJsonSelectorOptions>,
-  precedence: number
+  precedence: number,
 ): string {
   // Ensure @ is only used as a bare expression
   if (!options.currentImplied) {
@@ -55,7 +55,7 @@ export interface FormatJsonSelectorOptions {
 
 export function formatJsonSelector(
   selector: JsonSelector,
-  options: Partial<FormatJsonSelectorOptions> = {}
+  options: Partial<FormatJsonSelectorOptions> = {},
 ): string {
   return visitJsonSelector<string, undefined>(
     selector,
@@ -88,7 +88,7 @@ export function formatJsonSelector(
         let result = formatSubexpression(
           expression,
           options,
-          PRECEDENCE_ACCESS
+          PRECEDENCE_ACCESS,
         );
         // Wildcard operator is only needed if expression is not already a projection
         if (!projectionNodeTypes.has(expression.type)) {
@@ -139,6 +139,6 @@ export function formatJsonSelector(
         return `${lv} | ${rv}`;
       },
     },
-    undefined
+    undefined,
   );
 }

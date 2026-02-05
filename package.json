@@ -41,6 +41,7 @@
     "build": "rimraf dist && rollup -c rollup.config.mjs",
     "changeset": "changeset",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint src test benchmark",
     "lint:ci": "eslint src test benchmark --max-warnings 0 --format junit --output-file test-results/eslint/junit.xml",
     "prepare": "npm run build",

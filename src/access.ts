@@ -56,7 +56,10 @@ abstract class ReadOnlyAccessor extends BaseAccessor {
 }
 
 class ConstantAccessor<T> extends ReadOnlyAccessor {
-  constructor(selector: JsonSelector, readonly value: T) {
+  constructor(
+    selector: JsonSelector,
+    readonly value: T,
+  ) {
     super(selector);
   }
 
@@ -85,7 +88,7 @@ class RootContextAccessor extends ReadOnlyAccessor {
 }
 
 export function makeJsonSelectorAccessor(
-  selector: JsonSelector
+  selector: JsonSelector,
 ): UnboundAccessor {
   return visitJsonSelector<UnboundAccessor, undefined>(
     selector,
@@ -274,8 +277,8 @@ export function makeJsonSelectorAccessor(
               replaceArray(
                 arr,
                 invertedFilter(arr, condition, rootContext).concat(
-                  asArray(value)
-                )
+                  asArray(value),
+                ),
               );
             }
           }
@@ -306,7 +309,7 @@ export function makeJsonSelectorAccessor(
             if (isArray(arr)) {
               replaceArray(
                 arr,
-                invertedSlice(arr, start, end, step).concat(asArray(value))
+                invertedSlice(arr, start, end, step).concat(asArray(value)),
               );
             }
           }
@@ -430,7 +433,7 @@ export function makeJsonSelectorAccessor(
         return new Accessor();
       },
     },
-    undefined
+    undefined,
   );
 }
 
@@ -446,7 +449,7 @@ export interface Accessor<T> {
 export function bindJsonSelectorAccessor(
   unbound: UnboundAccessor,
   context: unknown,
-  rootContext = context
+  rootContext = context,
 ): Accessor<unknown> {
   const { selector } = unbound;
   const valid = unbound.isValidContext(context, rootContext);
@@ -469,18 +472,18 @@ export function bindJsonSelectorAccessor(
 export function accessWithJsonSelector(
   selector: JsonSelector,
   context: unknown,
-  rootContext = context
+  rootContext = context,
 ): Accessor<unknown> {
   return bindJsonSelectorAccessor(
     makeJsonSelectorAccessor(selector),
     context,
-    rootContext
+    rootContext,
   );
 }
 
 function replaceArray(
   target: unknown[],
-  source: readonly unknown[]
+  source: readonly unknown[],
 ): unknown[] {
   target.length = 0;
   target.push(...source);
@@ -490,10 +493,10 @@ function replaceArray(
 function invertedFilter(
   value: unknown[],
   condition: JsonSelector,
-  rootContext: unknown
+  rootContext: unknown,
 ): unknown[] {
   return value.filter((e) =>
-    isFalseOrEmpty(evaluateJsonSelector(condition, e, rootContext))
+    isFalseOrEmpty(evaluateJsonSelector(condition, e, rootContext)),
   );
 }
 
@@ -501,7 +504,7 @@ export function invertedSlice(
   value: unknown[],
   start: number | undefined,
   end?: number,
-  step?: number
+  step?: number,
 ): unknown[] {
   ({ start, end, step } = normalizeSlice(value.length, start, end, step));
   const collected: unknown[] = [];

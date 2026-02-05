@@ -32,18 +32,18 @@ function hasOwnProperties(value: Record<string, unknown>): boolean {
 }
 
 export function getField(obj: unknown, name: string): unknown {
-  return isObject(obj) ? obj[name] ?? null : null;
+  return isObject(obj) ? (obj[name] ?? null) : null;
 }
 
 export function getIndex(obj: unknown, index: number): unknown {
   return isArray(obj)
-    ? obj[index < 0 ? obj.length + index : index] ?? null
+    ? (obj[index < 0 ? obj.length + index : index] ?? null)
     : null;
 }
 
 export function findId(obj: unknown, id: string | number): unknown {
   return isArray(obj)
-    ? obj.find((e) => isObject(e) && e.id === id) ?? null
+    ? (obj.find((e) => isObject(e) && e.id === id) ?? null)
     : null;
 }
 

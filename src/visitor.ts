@@ -40,7 +40,7 @@ export interface Visitor<R, C> {
 export function visitJsonSelector<R, C>(
   selector: JsonSelector,
   visitor: Visitor<R, C>,
-  context: C
+  context: C,
 ): R {
   switch (selector.type) {
     case "current":
