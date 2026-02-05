@@ -22,7 +22,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Node.js 24 includes npm 11.5.1+ which is required for Trusted Publishing (OIDC)
+          node-version: 24
 
       - name: Install Dependencies
         run: npm ci
