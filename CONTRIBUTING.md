@@ -72,7 +72,6 @@ Thank you for your interest in contributing to json-selector! This document prov
    ```
 
 2. **Make Your Changes**
-
    - Write clear, readable code following existing patterns
    - Add tests for new functionality
    - Update documentation as needed
@@ -135,6 +134,7 @@ This project uses [Changesets](https://github.com/changesets/changesets) for ver
 ### For Contributors
 
 1. **Create a changeset** when making changes:
+
    ```bash
    npm run changeset
    ```
@@ -159,6 +159,7 @@ Releases are automated via GitHub Actions using NPM Trusted Publishing (OIDC):
    - When the "Version Packages" PR is merged, publishes to npm with provenance
 
 Manual release (if needed):
+
 ```bash
 npm run version-packages  # Bump versions and update changelog
 npm run release           # Publish to npm

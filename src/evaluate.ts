@@ -6,7 +6,7 @@ import { visitJsonSelector } from "./visitor";
 export function evaluateJsonSelector(
   selector: JsonSelector,
   context: unknown,
-  rootContext = context
+  rootContext = context,
 ): unknown {
   return visitJsonSelector<unknown, unknown>(
     selector,
@@ -26,33 +26,33 @@ export function evaluateJsonSelector(
       fieldAccess({ expression, field }) {
         return getField(
           evaluateJsonSelector(expression, context, rootContext),
-          field
+          field,
         );
       },
       indexAccess({ expression, index }) {
         return getIndex(
           evaluateJsonSelector(expression, context, rootContext),
-          index
+          index,
         );
       },
       idAccess({ expression, id }) {
         return findId(
           evaluateJsonSelector(expression, context, rootContext),
-          id
+          id,
         );
       },
       project({ expression, projection }) {
         return project(
           evaluateJsonSelector(expression, context, rootContext),
           projection,
-          rootContext
+          rootContext,
         );
       },
       filter({ expression, condition }) {
         return filter(
           evaluateJsonSelector(expression, context, rootContext),
           condition,
-          rootContext
+          rootContext,
         );
       },
       slice({ expression, start, end, step }) {
@@ -60,7 +60,7 @@ export function evaluateJsonSelector(
           evaluateJsonSelector(expression, context, rootContext),
           start,
           end,
-          step
+          step,
         );
       },
       flatten({ expression }) {
@@ -68,7 +68,7 @@ export function evaluateJsonSelector(
       },
       not({ expression }) {
         return isFalseOrEmpty(
-          evaluateJsonSelector(expression, context, rootContext)
+          evaluateJsonSelector(expression, context, rootContext),
         );
       },
       compare({ lhs, rhs, operator }) {
@@ -92,28 +92,28 @@ export function evaluateJsonSelector(
         return evaluateJsonSelector(
           rhs,
           evaluateJsonSelector(lhs, context, rootContext),
-          rootContext
+          rootContext,
         );
       },
     },
-    context
+    context,
   );
 }
 
 export function project(
   value: unknown[],
   projection: JsonSelector | undefined,
-  rootContext: unknown
+  rootContext: unknown,
 ): unknown[];
 export function project(
   value: unknown,
   projection: JsonSelector | undefined,
-  rootContext: unknown
+  rootContext: unknown,
 ): unknown[] | null;
 export function project(
   value: unknown,
   projection: JsonSelector | undefined,
-  rootContext: unknown
+  rootContext: unknown,
 ): unknown[] | null {
   if (!isArray(value)) {
     return null;
@@ -130,23 +130,23 @@ export function project(
 export function filter(
   value: unknown[],
   condition: JsonSelector,
-  rootContext: unknown
+  rootContext: unknown,
 ): unknown[];
 export function filter(
   value: unknown,
   condition: JsonSelector,
-  rootContext: unknown
+  rootContext: unknown,
 ): unknown[] | null;
 export function filter(
   value: unknown,
   condition: JsonSelector,
-  rootContext: unknown
+  rootContext: unknown,
 ): unknown[] | null {
   if (!isArray(value)) {
     return null;
   }
   const result = value.filter(
-    (e) => !isFalseOrEmpty(evaluateJsonSelector(condition, e, rootContext))
+    (e) => !isFalseOrEmpty(evaluateJsonSelector(condition, e, rootContext)),
   );
   return result;
 }
@@ -155,19 +155,19 @@ export function slice(
   value: unknown[],
   start: number | undefined,
   end?: number,
-  step?: number
+  step?: number,
 ): unknown[];
 export function slice(
   value: unknown,
   start: number | undefined,
   end?: number,
-  step?: number
+  step?: number,
 ): unknown[] | null;
 export function slice(
   value: unknown,
   start: number | undefined,
   end?: number,
-  step?: number
+  step?: number,
 ): unknown[] | null {
   if (!isArray(value)) {
     return null;
@@ -190,7 +190,7 @@ export function normalizeSlice(
   length: number,
   start?: number,
   end?: number,
-  step?: number
+  step?: number,
 ): { start: number; end: number; step: number } {
   if (step == null) {
     step = 1;
@@ -231,17 +231,17 @@ export function flatten(value: unknown): unknown[] | null {
 export function compare(
   lv: number,
   rv: number,
-  operator: JsonSelectorCompareOperator
+  operator: JsonSelectorCompareOperator,
 ): boolean;
 export function compare(
   lv: unknown,
   rv: unknown,
-  operator: JsonSelectorCompareOperator
+  operator: JsonSelectorCompareOperator,
 ): boolean | null;
 export function compare(
   lv: unknown,
   rv: unknown,
-  operator: JsonSelectorCompareOperator
+  operator: JsonSelectorCompareOperator,
 ): boolean | null {
   switch (operator) {
     case "==":

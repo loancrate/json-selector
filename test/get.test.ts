@@ -11,10 +11,10 @@ test("getWithJsonSelector", () => {
 
     expect(getWithJsonSelector(parseJsonSelector("foo"), obj)).toBe(obj.foo);
     expect(getWithJsonSelector(parseJsonSelector("foo.bar"), obj)).toBe(
-      obj.foo.bar
+      obj.foo.bar,
     );
     expect(
-      getWithJsonSelector(parseJsonSelector("foo.bar['id'].value"), obj)
+      getWithJsonSelector(parseJsonSelector("foo.bar['id'].value"), obj),
     ).toBe(42);
   }
   {
@@ -28,8 +28,8 @@ test("getWithJsonSelector", () => {
     expect(
       getWithJsonSelector(
         parseJsonSelector("foo[].bar[?baz.kind == `primary`][].baz | [0].name"),
-        obj
-      )
+        obj,
+      ),
     ).toBe("y");
   }
 });
