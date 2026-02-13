@@ -8,8 +8,16 @@ export function asArray(value: unknown): unknown[] {
   return value == null ? [] : isArray(value) ? value : [value];
 }
 
+/** Tuple type that guarantees at least one element is present. */
+export type NonEmptyArray<T> = [T, ...T[]];
+
+/** Type guard that narrows an array to {@link NonEmptyArray}, confirming it has at least one element. */
+export function isNonEmptyArray<T>(arr: T[]): arr is NonEmptyArray<T> {
+  return arr.length > 0;
+}
+
 export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value != null;
+  return typeof value === "object" && value != null && !isArray(value);
 }
 
 export function isFalseOrEmpty(value: unknown): boolean {

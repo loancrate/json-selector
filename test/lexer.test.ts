@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "node:assert/strict";
 import { Lexer } from "../src/lexer";
 import { describeTokenType, Token, TokenType } from "../src/token";
 
@@ -559,10 +559,12 @@ describe("Lexer", () => {
       );
     });
 
-    test("throws on single ampersand", () => {
-      expect(() => tokenize("&")).toThrow(
-        "Unexpected character at position 0: expected '&&' but got '&'",
-      );
+    test("parses single ampersand as AMPERSAND token", () => {
+      // Single ampersand is now valid for expression references (&expr)
+      const result = tokenize("&");
+      expect(result.type).toBe(TokenType.AMPERSAND);
+      expect(result.text).toBe("&");
+      expect(result.offset).toBe(0);
     });
 
     test("reports correct position for error", () => {

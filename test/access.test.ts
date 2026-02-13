@@ -455,8 +455,7 @@ describe("makeJsonSelectorAccessor", () => {
       expect(acc.isValidContext(null)).toBe(false);
       expect(acc.isValidContext("string")).toBe(false);
       expect(acc.isValidContext(42)).toBe(false);
-      // Note: arrays are objects in JS, so isObject returns true for them
-      expect(acc.isValidContext([])).toBe(true);
+      expect(acc.isValidContext([])).toBe(false);
     });
   });
 
