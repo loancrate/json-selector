@@ -290,18 +290,17 @@ export class Lexer {
   }
 
   /**
-   * Scan &&
+   * Scan & or &&
    */
   private scanAmpersand(start: number): SymbolToken {
     const ch = this.advanceCharCode(); // consume &
     if (ch === 38) {
-      // &
+      // &&
       this.pos++;
       return { type: TokenType.AND, text: "&&", offset: start };
     }
-    throw new Error(
-      `Unexpected character at position ${start}: expected '&&' but got '&'`,
-    );
+    // Single & for expression references
+    return { type: TokenType.AMPERSAND, text: "&", offset: start };
   }
 
   /**

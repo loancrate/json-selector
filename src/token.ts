@@ -8,8 +8,8 @@ export const enum TokenType {
   RPAREN,
   LBRACKET,
   RBRACKET,
-  LBRACE, // Reserved for future use (multi-select hashes)
-  RBRACE, // Reserved for future use (multi-select hashes)
+  LBRACE,
+  RBRACE,
   DOT,
   COMMA,
   COLON,
@@ -31,6 +31,7 @@ export const enum TokenType {
   DOLLAR,
   STAR,
   QUESTION, // Reserved for future use (ternary operator)
+  AMPERSAND,
   FILTER_BRACKET,
   FLATTEN_BRACKET,
 
@@ -156,6 +157,7 @@ const TOKEN_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.DOLLAR]: "'$'",
   [TokenType.STAR]: "'*'",
   [TokenType.QUESTION]: "'?'",
+  [TokenType.AMPERSAND]: "'&'",
   [TokenType.FILTER_BRACKET]: "'[?'",
   [TokenType.FLATTEN_BRACKET]: "'[]'",
   [TokenType.IDENTIFIER]: "identifier",
