@@ -1,5 +1,6 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
+import importPlugin from "eslint-plugin-import";
 import jest from "eslint-plugin-jest";
 import globals from "globals";
 
@@ -26,6 +27,7 @@ export default [
         { assertionStyle: "never" },
       ],
       "@typescript-eslint/explicit-module-boundary-types": "warn",
+      "@typescript-eslint/no-deprecated": "warn",
       "@typescript-eslint/no-empty-object-type": "off",
       "@typescript-eslint/no-unnecessary-type-assertion": "warn",
       "@typescript-eslint/no-non-null-assertion": "warn",
@@ -45,6 +47,13 @@ export default [
       "@typescript-eslint/require-await": "off",
       curly: ["error", "all"],
       "no-console": "warn",
+    },
+  },
+  {
+    files: ["src/**/*.ts"],
+    plugins: { import: importPlugin },
+    rules: {
+      "import/no-nodejs-modules": "error",
     },
   },
   {

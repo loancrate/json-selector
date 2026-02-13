@@ -1,23 +1,29 @@
 import * as fs from "fs";
 import * as path from "path";
 import { JsonValue } from "type-fest";
-import { evaluateJsonSelector, parseJsonSelector } from "../src";
+import {
+  evaluateJsonSelector,
+  InvalidArgumentTypeError,
+  InvalidArgumentValueError,
+  InvalidArityError,
+  parseJsonSelector,
+  UnknownFunctionError,
+} from "../src";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ERROR_TYPE_MAP: Record<string, new (...args: any[]) => Error> = {
+  "invalid-type": InvalidArgumentTypeError,
+  "invalid-value": InvalidArgumentValueError,
+  "invalid-arity": InvalidArityError,
+  "unknown-function": UnknownFunctionError,
+};
 
 const include = new Set<string>();
-const exclude = new Set<string>(["functions", "multiselect"]);
+const exclude = new Set<string>();
 
 const excludeComments: Array<string | RegExp> = [];
 
-// functions, object projections, multi-selects are not supported yet
-const excludeExpressions: Array<string | RegExp> = [
-  /[a-z]\(/i,
-  ".*",
-  /^\*/,
-  ".{",
-  /^\{/,
-  ".[",
-  /^\[/,
-];
+const excludeExpressions: Array<string | RegExp> = [];
 
 const dirname = "test/jmespath";
 const filenames = fs.readdirSync(dirname);
@@ -86,7 +92,14 @@ function addTestSuitesFromFile(filename: string) {
           ) {
             if ("error" in testCase) {
               it(testName, function () {
-                expect(() => search(given, testCase.expression)).toThrow();
+                const ErrorClass = ERROR_TYPE_MAP[testCase.error];
+                if (ErrorClass) {
+                  expect(() => search(given, testCase.expression)).toThrow(
+                    ErrorClass,
+                  );
+                } else {
+                  expect(() => search(given, testCase.expression)).toThrow();
+                }
               });
             } else {
               it(testName, function () {

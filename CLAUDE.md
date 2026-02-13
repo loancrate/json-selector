@@ -20,7 +20,7 @@ Cleans `dist/` and builds both UMD and ESM bundles using Rollup.
 
 The parser is implemented as a **hand-written Pratt parser** (precedence-climbing) with a **custom hand-written lexer**.
 
-**Status**: 593/690 tests passing (85.9%). All projection chain tests pass. 97 tests are skipped (jmespath compliance tests).
+**Status**: Full JMESPath compliance achieved.
 
 **Implementation**: The parser uses Pratt parsing with binding power to handle operator precedence efficiently. The lexer uses numeric token types (const enum) and lookup tables for optimal performance.
 
@@ -58,18 +58,27 @@ Tests are in the `test/` directory using Jest. To run a single test file:
 npx jest test/parse.test.ts
 ```
 
-**JMESPath Compliance**: 593/690 JMESPath compliance tests pass. The 97 skipped tests cover unsupported features:
+**JMESPath Compliance**: All JMESPath compliance tests pass.
 
-**Not Currently Supported** (may be added in future):
+**Supported Features**:
 
-- **Functions**: `max()`, `length()`, `sum()`, etc. - JMESPath built-in functions
+- **Functions**: All JMESPath built-in functions with strict type validation
 - **Multi-select lists**: `[foo, bar]` - selecting multiple fields into an array
 - **Multi-select hashes**: `{a: foo, b: bar}` - creating new objects from selections
 - **Object projections**: `.*` - wildcard over object keys (projects object values)
-- **Root wildcard**: `*.foo` - wildcard without context prefix
-- **Root brackets**: `[0]`, `[*]` - bracket expressions without context prefix (use `@[0]`, `@[*]` instead)
+- **Expression references**: `&expr` - for sort_by, max_by, min_by, group_by, map
 
-The library focuses on path-based selection, projections with filters, logical operators, and extensions (root `$` reference and ID-based `['id']` access).
+**Extensions** (LoanCrate-specific):
+
+- **Root reference**: `$` - reference to root context
+- **ID-based access**: `x['id']` - equivalent to `x[?id == 'id'] | [0]`
+
+**Not Currently Supported**:
+
+These JMESPath Community features are not yet supported:
+
+- Arithmetic expressions (`+`, `-`, `*`, `/`, `%`, `//`)
+- Let expressions (`let $var = expr in expression`)
 
 ### Linting
 
@@ -141,7 +150,7 @@ Benchmark implementation is modular:
 **AST (`src/ast.ts`)**
 
 - TypeScript type definitions for all selector node types
-- 16 node types: current, root, literal, identifier, fieldAccess, indexAccess, idAccess, project, filter, slice, flatten, not, compare, and, or, pipe
+- 21 node types: current, root, literal, identifier, fieldAccess, indexAccess, idAccess, project, filter, slice, flatten, not, compare, and, or, pipe, functionCall, expressionRef, multiSelectList, multiSelectHash, objectProject
 - Discriminated union type `JsonSelector` for type-safe pattern matching
 
 **Visitor Pattern (`src/visitor.ts`)**
@@ -168,6 +177,17 @@ Benchmark implementation is modular:
 
 - `formatJsonSelector()`: converts AST back to selector string
 - Uses visitor pattern to reconstruct expression syntax
+
+**Functions (`src/functions/`)**
+
+- `FunctionRegistry`: manages function registration and lookup
+- Type system with `DataType` discriminated union (`PrimitiveType`, `ArrayType`, `UnionType`) for argument validation
+- Strict type validation with error hierarchy: `FunctionError`, `InvalidArityError`, `InvalidArgumentTypeError`, `InvalidArgumentValueError`, `UnknownFunctionError`
+- Built-in functions organized in modules:
+  - `builtins/type.ts`: `type()`
+  - `builtins/string.ts`: `length()`, `reverse()`, `to_string()`, `starts_with()`, `join()`, etc.
+  - `builtins/math.ts`: `abs()`, `ceil()`, `floor()`, `sum()`, `avg()`, `min()`, `max()`
+  - `builtins/array.ts`: `sort()`, `sort_by()`, `keys()`, `values()`, `map()`, etc.
 
 **Public API (`src/index.ts`)**
 

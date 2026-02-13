@@ -4,11 +4,15 @@ import {
   evaluateJsonSelector,
   filter,
   flatten,
+  isIdentityProjection,
   normalizeSlice,
+  objectProject,
   project,
   slice,
 } from "./evaluate";
 import { formatJsonSelector } from "./format";
+import { EvaluationContext } from "./functions";
+import { getBuiltinFunctionProvider } from "./functions/builtins";
 import {
   asArray,
   findId,
@@ -21,6 +25,7 @@ import {
 } from "./util";
 import { visitJsonSelector } from "./visitor";
 
+/** A selector-based accessor not yet bound to a specific context object, supporting get/set/delete operations. */
 export interface UnboundAccessor {
   readonly selector: JsonSelector;
   isValidContext(context: unknown, rootContext?: unknown): boolean;
@@ -87,8 +92,22 @@ class RootContextAccessor extends ReadOnlyAccessor {
   }
 }
 
+/** Configuration for accessor creation, providing the function provider used during evaluation. */
+export type AccessorOptions = Omit<EvaluationContext, "rootContext">;
+
+/** Compiles a selector AST into an {@link UnboundAccessor} that can be repeatedly bound to different contexts. */
 export function makeJsonSelectorAccessor(
   selector: JsonSelector,
+  options?: Partial<AccessorOptions>,
+): UnboundAccessor {
+  return makeAccessorInternal(selector, {
+    functionProvider: options?.functionProvider ?? getBuiltinFunctionProvider(),
+  });
+}
+
+function makeAccessorInternal(
+  selector: JsonSelector,
+  options: AccessorOptions,
 ): UnboundAccessor {
   return visitJsonSelector<UnboundAccessor, undefined>(
     selector,
@@ -129,16 +148,18 @@ export function makeJsonSelectorAccessor(
       },
       fieldAccess(selector) {
         const { expression, field } = selector;
-        const base = makeJsonSelectorAccessor(expression);
+        const base = makeAccessorInternal(expression, options);
         const Accessor = class extends BaseAccessor {
           constructor() {
             super(selector);
           }
           isValidContext(context: unknown, rootContext = context) {
-            return isObject(base.get(context, rootContext));
+            const value = base.get(context, rootContext);
+            return isObject(value);
           }
           get(context: unknown, rootContext = context) {
-            return getField(base.get(context, rootContext), field);
+            const obj = base.get(context, rootContext);
+            return getField(obj, field);
           }
           set(value: unknown, context: unknown, rootContext = context) {
             const obj = base.get(context, rootContext);
@@ -157,21 +178,23 @@ export function makeJsonSelectorAccessor(
       },
       indexAccess(selector) {
         const { expression, index } = selector;
-        const base = makeJsonSelectorAccessor(expression);
+        const base = makeAccessorInternal(expression, options);
         const Accessor = class extends BaseAccessor {
           constructor() {
             super(selector);
           }
           isValidContext(context: unknown, rootContext = context) {
-            return isArray(base.get(context, rootContext));
+            const value = base.get(context, rootContext);
+            return isArray(value);
           }
           get(context: unknown, rootContext = context) {
-            return getIndex(base.get(context, rootContext), index);
+            const arr = base.get(context, rootContext);
+            return getIndex(arr, index);
           }
           set(value: unknown, context: unknown, rootContext = context) {
             const arr = base.get(context, rootContext);
             if (isArray(arr)) {
-              arr[index] = value;
+              arr[index < 0 ? arr.length + index : index] = value;
             }
           }
           delete(context: unknown, rootContext = context) {
@@ -185,16 +208,18 @@ export function makeJsonSelectorAccessor(
       },
       idAccess(selector) {
         const { expression, id } = selector;
-        const base = makeJsonSelectorAccessor(expression);
+        const base = makeAccessorInternal(expression, options);
         const Accessor = class extends BaseAccessor {
           constructor() {
             super(selector);
           }
           isValidContext(context: unknown, rootContext = context) {
-            return isArray(base.get(context, rootContext));
+            const value = base.get(context, rootContext);
+            return isArray(value);
           }
           get(context: unknown, rootContext = context) {
-            return findId(base.get(context, rootContext), id);
+            const arr = base.get(context, rootContext);
+            return findId(arr, id);
           }
           set(value: unknown, context: unknown, rootContext = context) {
             const arr = base.get(context, rootContext);
@@ -219,17 +244,21 @@ export function makeJsonSelectorAccessor(
       },
       project(selector) {
         const { expression, projection } = selector;
-        const base = makeJsonSelectorAccessor(expression);
-        const proj = projection && makeJsonSelectorAccessor(projection);
+        const base = makeAccessorInternal(expression, options);
+        const proj = !isIdentityProjection(projection)
+          ? makeAccessorInternal(projection, options)
+          : undefined;
         const Accessor = class extends BaseAccessor {
           constructor() {
             super(selector);
           }
           isValidContext(context: unknown, rootContext = context) {
-            return isArray(base.get(context, rootContext));
+            const value = base.get(context, rootContext);
+            return isArray(value);
           }
           get(context: unknown, rootContext = context) {
-            return project(base.get(context, rootContext), projection, context);
+            const arr = base.get(context, rootContext);
+            return project(arr, projection, { ...options, rootContext });
           }
           set(value: unknown, context: unknown, rootContext = context) {
             const arr = base.get(context, rootContext);
@@ -258,34 +287,92 @@ export function makeJsonSelectorAccessor(
         };
         return new Accessor();
       },
-      filter(selector) {
-        const { expression, condition } = selector;
-        const base = makeJsonSelectorAccessor(expression);
+      objectProject(selector) {
+        const { expression, projection } = selector;
+        const base = makeAccessorInternal(expression, options);
+        const proj = !isIdentityProjection(projection)
+          ? makeAccessorInternal(projection, options)
+          : undefined;
         const Accessor = class extends BaseAccessor {
           constructor() {
             super(selector);
           }
           isValidContext(context: unknown, rootContext = context) {
-            return isArray(base.get(context, rootContext));
+            const value = base.get(context, rootContext);
+            return isObject(value);
           }
           get(context: unknown, rootContext = context) {
-            return filter(base.get(context, rootContext), condition, context);
+            const obj = base.get(context, rootContext);
+            return objectProject(obj, projection, { ...options, rootContext });
+          }
+          set(value: unknown, context: unknown, rootContext = context) {
+            const obj = base.get(context, rootContext);
+            if (isObject(obj)) {
+              if (proj) {
+                for (const v of Object.values(obj)) {
+                  proj.set(value, v, rootContext);
+                }
+              } else {
+                for (const key of Object.keys(obj)) {
+                  obj[key] = value;
+                }
+              }
+            }
+          }
+          delete(context: unknown, rootContext = context) {
+            const obj = base.get(context, rootContext);
+            if (isObject(obj)) {
+              if (proj) {
+                for (const v of Object.values(obj)) {
+                  proj.delete(v, rootContext);
+                }
+              } else {
+                for (const key of Object.keys(obj)) {
+                  delete obj[key];
+                }
+              }
+            }
+          }
+        };
+        return new Accessor();
+      },
+      filter(selector) {
+        const { expression, condition } = selector;
+        const base = makeAccessorInternal(expression, options);
+        const Accessor = class extends BaseAccessor {
+          constructor() {
+            super(selector);
+          }
+          isValidContext(context: unknown, rootContext = context) {
+            const value = base.get(context, rootContext);
+            return isArray(value);
+          }
+          get(context: unknown, rootContext = context) {
+            const arr = base.get(context, rootContext);
+            return filter(arr, condition, { ...options, rootContext });
           }
           set(value: unknown, context: unknown, rootContext = context) {
             const arr = base.get(context, rootContext);
             if (isArray(arr)) {
               replaceArray(
                 arr,
-                invertedFilter(arr, condition, rootContext).concat(
-                  asArray(value),
-                ),
+                invertedFilter(arr, condition, {
+                  ...options,
+                  rootContext,
+                }).concat(asArray(value)),
               );
             }
           }
           delete(context: unknown, rootContext = context) {
             const arr = base.get(context, rootContext);
             if (isArray(arr)) {
-              replaceArray(arr, invertedFilter(arr, condition, rootContext));
+              replaceArray(
+                arr,
+                invertedFilter(arr, condition, {
+                  ...options,
+                  rootContext,
+                }),
+              );
             }
           }
         };
@@ -293,16 +380,18 @@ export function makeJsonSelectorAccessor(
       },
       slice(selector) {
         const { expression, start, end, step } = selector;
-        const base = makeJsonSelectorAccessor(expression);
+        const base = makeAccessorInternal(expression, options);
         const Accessor = class extends BaseAccessor {
           constructor() {
             super(selector);
           }
           isValidContext(context: unknown, rootContext = context) {
-            return isArray(base.get(context, rootContext));
+            const value = base.get(context, rootContext);
+            return isArray(value);
           }
           get(context: unknown, rootContext = context) {
-            return slice(base.get(context, rootContext), start, end, step);
+            const arr = base.get(context, rootContext);
+            return slice(arr, start, end, step);
           }
           set(value: unknown, context: unknown, rootContext = context) {
             const arr = base.get(context, rootContext);
@@ -324,16 +413,18 @@ export function makeJsonSelectorAccessor(
       },
       flatten(selector) {
         const { expression } = selector;
-        const base = makeJsonSelectorAccessor(expression);
+        const base = makeAccessorInternal(expression, options);
         const Accessor = class extends BaseAccessor {
           constructor() {
             super(selector);
           }
           isValidContext(context: unknown, rootContext = context) {
-            return isArray(base.get(context, rootContext));
+            const value = base.get(context, rootContext);
+            return isArray(value);
           }
           get(context: unknown, rootContext = context) {
-            return flatten(base.get(context, rootContext));
+            const arr = base.get(context, rootContext);
+            return flatten(arr);
           }
           set(value: unknown, context: unknown, rootContext = context) {
             const arr = base.get(context, rootContext);
@@ -352,21 +443,22 @@ export function makeJsonSelectorAccessor(
       },
       not(selector) {
         const { expression } = selector;
-        const base = makeJsonSelectorAccessor(expression);
+        const base = makeAccessorInternal(expression, options);
         const Accessor = class extends ReadOnlyAccessor {
           constructor() {
             super(selector);
           }
           get(context: unknown, rootContext = context) {
-            return isFalseOrEmpty(base.get(context, rootContext));
+            const value = base.get(context, rootContext);
+            return isFalseOrEmpty(value);
           }
         };
         return new Accessor();
       },
       compare(selector) {
         const { lhs, rhs, operator } = selector;
-        const la = makeJsonSelectorAccessor(lhs);
-        const ra = makeJsonSelectorAccessor(rhs);
+        const la = makeAccessorInternal(lhs, options);
+        const ra = makeAccessorInternal(rhs, options);
         const Accessor = class extends ReadOnlyAccessor {
           constructor() {
             super(selector);
@@ -381,8 +473,8 @@ export function makeJsonSelectorAccessor(
       },
       and(selector) {
         const { lhs, rhs } = selector;
-        const la = makeJsonSelectorAccessor(lhs);
-        const ra = makeJsonSelectorAccessor(rhs);
+        const la = makeAccessorInternal(lhs, options);
+        const ra = makeAccessorInternal(rhs, options);
         const Accessor = class extends ReadOnlyAccessor {
           constructor() {
             super(selector);
@@ -396,8 +488,8 @@ export function makeJsonSelectorAccessor(
       },
       or(selector) {
         const { lhs, rhs } = selector;
-        const la = makeJsonSelectorAccessor(lhs);
-        const ra = makeJsonSelectorAccessor(rhs);
+        const la = makeAccessorInternal(lhs, options);
+        const ra = makeAccessorInternal(rhs, options);
         const Accessor = class extends ReadOnlyAccessor {
           constructor() {
             super(selector);
@@ -411,23 +503,86 @@ export function makeJsonSelectorAccessor(
       },
       pipe(selector) {
         const { lhs, rhs } = selector;
-        const la = makeJsonSelectorAccessor(lhs);
-        const ra = makeJsonSelectorAccessor(rhs);
+        const la = makeAccessorInternal(lhs, options);
+        const ra = makeAccessorInternal(rhs, options);
         const Accessor = class extends BaseAccessor {
           constructor() {
             super(selector);
           }
           isValidContext(context: unknown, rootContext = context) {
-            return ra.isValidContext(la.get(context, rootContext), rootContext);
+            const lv = la.get(context, rootContext);
+            return ra.isValidContext(lv, rootContext);
           }
           get(context: unknown, rootContext = context) {
-            return ra.get(la.get(context, rootContext), rootContext);
+            const lv = la.get(context, rootContext);
+            return ra.get(lv, rootContext);
           }
           set(value: unknown, context: unknown, rootContext = context) {
-            ra.set(value, la.get(context, rootContext), rootContext);
+            const lv = la.get(context, rootContext);
+            ra.set(value, lv, rootContext);
           }
           delete(context: unknown, rootContext = context) {
-            ra.delete(la.get(context, rootContext), rootContext);
+            const lv = la.get(context, rootContext);
+            ra.delete(lv, rootContext);
+          }
+        };
+        return new Accessor();
+      },
+      functionCall(selector) {
+        const Accessor = class extends ReadOnlyAccessor {
+          constructor() {
+            super(selector);
+          }
+          get(context: unknown, rootContext = context) {
+            return evaluateJsonSelector(selector, context, {
+              ...options,
+              rootContext,
+            });
+          }
+        };
+        return new Accessor();
+      },
+      expressionRef(selector) {
+        // Expression references are only meaningful as function arguments
+        return new ConstantAccessor(selector, null);
+      },
+      multiSelectList(selector) {
+        const { expressions } = selector;
+        const accessors = expressions.map((e) =>
+          makeAccessorInternal(e, options),
+        );
+        const Accessor = class extends ReadOnlyAccessor {
+          constructor() {
+            super(selector);
+          }
+          get(context: unknown, rootContext = context) {
+            if (context == null) {
+              return null;
+            }
+            return accessors.map((a) => a.get(context, rootContext));
+          }
+        };
+        return new Accessor();
+      },
+      multiSelectHash(selector) {
+        const { entries } = selector;
+        const entryAccessors = entries.map(({ key, value }) => ({
+          key,
+          accessor: makeAccessorInternal(value, options),
+        }));
+        const Accessor = class extends ReadOnlyAccessor {
+          constructor() {
+            super(selector);
+          }
+          get(context: unknown, rootContext = context) {
+            if (context == null) {
+              return null;
+            }
+            const result: Record<string, unknown> = {};
+            for (const { key, accessor } of entryAccessors) {
+              result[key] = accessor.get(context, rootContext);
+            }
+            return result;
           }
         };
         return new Accessor();
@@ -437,6 +592,7 @@ export function makeJsonSelectorAccessor(
   );
 }
 
+/** A selector accessor bound to a specific context, providing typed get/set/delete and validity checking. */
 export interface Accessor<T> {
   readonly selector: JsonSelector;
   readonly valid: boolean;
@@ -446,6 +602,7 @@ export interface Accessor<T> {
   delete(): void;
 }
 
+/** Binds an {@link UnboundAccessor} to a specific context and root, producing a ready-to-use {@link Accessor}. */
 export function bindJsonSelectorAccessor(
   unbound: UnboundAccessor,
   context: unknown,
@@ -469,13 +626,15 @@ export function bindJsonSelectorAccessor(
   };
 }
 
+/** One-step convenience: parses a selector into an accessor already bound to the given context. */
 export function accessWithJsonSelector(
   selector: JsonSelector,
   context: unknown,
   rootContext = context,
+  options?: Partial<AccessorOptions>,
 ): Accessor<unknown> {
   return bindJsonSelectorAccessor(
-    makeJsonSelectorAccessor(selector),
+    makeJsonSelectorAccessor(selector, options),
     context,
     rootContext,
   );
@@ -493,13 +652,14 @@ function replaceArray(
 function invertedFilter(
   value: unknown[],
   condition: JsonSelector,
-  rootContext: unknown,
+  evalCtx: EvaluationContext,
 ): unknown[] {
   return value.filter((e) =>
-    isFalseOrEmpty(evaluateJsonSelector(condition, e, rootContext)),
+    isFalseOrEmpty(evaluateJsonSelector(condition, e, evalCtx)),
   );
 }
 
+/** Returns the complement of a slice: the elements that would NOT be selected by the given slice parameters. */
 export function invertedSlice(
   value: unknown[],
   start: number | undefined,
