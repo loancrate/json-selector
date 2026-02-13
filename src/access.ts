@@ -387,7 +387,7 @@ function makeAccessorInternal(
           }
           isValidContext(context: unknown, rootContext = context) {
             const value = base.get(context, rootContext);
-            return isArray(value);
+            return isArray(value) || typeof value === "string";
           }
           get(context: unknown, rootContext = context) {
             const arr = base.get(context, rootContext);

@@ -1022,9 +1022,31 @@ describe("makeJsonSelectorAccessor", () => {
       expect(acc.get({ a: [1, 2, 3, 4, 5] })).toStrictEqual([5, 4, 3, 2, 1]);
     });
 
-    test("get on non-array returns null", () => {
+    test("get with string", () => {
       const acc = accessor("a[1:3]");
-      expect(acc.get({ a: "string" })).toBeNull();
+      expect(acc.get({ a: "foobar" })).toBe("oo");
+    });
+
+    test("get with string step", () => {
+      const acc = accessor("a[::2]");
+      expect(acc.get({ a: "abcdef" })).toBe("ace");
+    });
+
+    test("get with string negative step", () => {
+      const acc = accessor("a[::-1]");
+      expect(acc.get({ a: "foobar" })).toBe("raboof");
+    });
+
+    test("get with unicode string uses code points", () => {
+      const acc = accessor("a[1:3]");
+      expect(
+        acc.get({ a: "\ud83d\ude00\ud83d\ude03\ud83d\ude04\ud83d\ude01" }),
+      ).toBe("\ud83d\ude03\ud83d\ude04");
+    });
+
+    test("get on non-array/non-string returns null", () => {
+      const acc = accessor("a[1:3]");
+      expect(acc.get({ a: { value: "string" } })).toBeNull();
     });
 
     test("set with positive step", () => {
@@ -1076,11 +1098,11 @@ describe("makeJsonSelectorAccessor", () => {
       expect(obj.a).toBe("string");
     });
 
-    test("isValidContext for arrays", () => {
+    test("isValidContext for arrays and strings", () => {
       const acc = accessor("a[1:3]");
       expect(acc.isValidContext({ a: [] })).toBe(true);
       expect(acc.isValidContext({ a: [1, 2, 3] })).toBe(true);
-      expect(acc.isValidContext({ a: "string" })).toBe(false);
+      expect(acc.isValidContext({ a: "string" })).toBe(true);
       expect(acc.isValidContext({ a: null })).toBe(false);
     });
   });
