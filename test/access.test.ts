@@ -1038,9 +1038,9 @@ describe("makeJsonSelectorAccessor", () => {
 
     test("get with unicode string uses code points", () => {
       const acc = accessor("a[1:3]");
-      expect(acc.get({ a: "\ud83d\ude00\ud83d\ude03\ud83d\ude04\ud83d\ude01" })).toBe(
-        "\ud83d\ude03\ud83d\ude04",
-      );
+      expect(
+        acc.get({ a: "\ud83d\ude00\ud83d\ude03\ud83d\ude04\ud83d\ude01" }),
+      ).toBe("\ud83d\ude03\ud83d\ude04");
     });
 
     test("get on non-array/non-string returns null", () => {

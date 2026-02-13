@@ -140,12 +140,24 @@ describe("evaluate", () => {
       context: { s: string };
       result: string;
     }> = [
-      { expression: "s[:]", context: { s: "0123456789" }, result: "0123456789" },
-      { expression: "s[0:20]", context: { s: "0123456789" }, result: "0123456789" },
+      {
+        expression: "s[:]",
+        context: { s: "0123456789" },
+        result: "0123456789",
+      },
+      {
+        expression: "s[0:20]",
+        context: { s: "0123456789" },
+        result: "0123456789",
+      },
       { expression: "s[10:-20]", context: { s: "0123456789" }, result: "" },
       { expression: "s[-4:-1]", context: { s: "0123456789" }, result: "678" },
       { expression: "s[:-5:-1]", context: { s: "0123456789" }, result: "9876" },
-      { expression: "s[10:0:-1]", context: { s: "0123456789" }, result: "987654321" },
+      {
+        expression: "s[10:0:-1]",
+        context: { s: "0123456789" },
+        result: "987654321",
+      },
       { expression: "s[8:2:-2]", context: { s: "0123456789" }, result: "864" },
       { expression: "s[3:3]", context: { s: "0123456789" }, result: "" },
       { expression: "s[::-1]", context: { s: "" }, result: "" },
