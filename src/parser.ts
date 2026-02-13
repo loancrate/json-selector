@@ -124,10 +124,15 @@ export class Parser {
     }
 
     switch (token.type) {
-      // Hot path: field names (most common)
-      case TokenType.IDENTIFIER:
+      // Hot path: field names (most common) or function calls
+      case TokenType.IDENTIFIER: {
         this.lexer.advance();
+        // Check if this is a function call (identifier followed by `(`)
+        if (this.lexer.peek().type === TokenType.LPAREN) {
+          return this.parseFunctionCall(token.value);
+        }
         return { type: "identifier", id: token.value };
+      }
 
       case TokenType.QUOTED_STRING:
         this.lexer.advance();
@@ -135,7 +140,7 @@ export class Parser {
 
       case TokenType.AT:
         this.lexer.advance();
-        return CURRENT_NODE;
+        return { type: "current", explicit: true };
 
       case TokenType.LBRACKET:
         return this.parseBracketExpression();
@@ -161,6 +166,19 @@ export class Parser {
         this.lexer.advance();
         return { type: "literal", value: token.value };
 
+      // Keyword literals: true, false, null
+      case TokenType.TRUE:
+        this.lexer.advance();
+        return { type: "literal", value: true };
+
+      case TokenType.FALSE:
+        this.lexer.advance();
+        return { type: "literal", value: false };
+
+      case TokenType.NULL:
+        this.lexer.advance();
+        return { type: "literal", value: null };
+
       case TokenType.BACKTICK_LITERAL: {
         this.lexer.advance();
         const content = token.value.trim();
@@ -168,10 +186,10 @@ export class Parser {
           // Type assertion is safe as JSON.parse returns a JsonValue
           // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
           const value = JSON.parse(content) as JsonValue;
-          return { type: "literal", value };
+          return { type: "literal", value, backtickSyntax: true };
         } catch {
           // Fallback: parse as unquoted string (legacy compatibility)
-          return { type: "literal", value: content };
+          return { type: "literal", value: content, backtickSyntax: true };
         }
       }
 
@@ -187,6 +205,26 @@ export class Parser {
         const expr = this.expression(0);
         this.lexer.consume(TokenType.RPAREN);
         return expr;
+      }
+
+      case TokenType.LBRACE:
+        // Multi-select hash: {a: x, b: y}
+        return this.parseMultiSelectHash();
+
+      case TokenType.STAR: {
+        // Root object projection: * or *.foo
+        this.lexer.advance();
+        return this.parseObjectProjection(CURRENT_NODE);
+      }
+
+      case TokenType.AMPERSAND: {
+        // Expression reference: &expr (for sort_by, max_by, etc.)
+        // Use binding power 0 to capture the full expression (up to comma or closing bracket)
+        this.lexer.advance();
+        return {
+          type: "expressionRef",
+          expression: this.expression(0),
+        };
       }
 
       default:
@@ -205,7 +243,45 @@ export class Parser {
       // Hot path: field access (most common!)
       case TokenType.DOT: {
         this.lexer.advance();
+        const nextToken = this.lexer.peek();
+
+        // Object projection: foo.*
+        if (nextToken.type === TokenType.STAR) {
+          this.lexer.advance();
+          return this.parseObjectProjection(left);
+        }
+
+        // Multi-select hash: foo.{a: x, b: y}
+        if (nextToken.type === TokenType.LBRACE) {
+          const multiSelectHash = this.parseMultiSelectHash();
+          return {
+            type: "pipe",
+            lhs: left,
+            rhs: multiSelectHash,
+            dotSyntax: true,
+          };
+        }
+
+        // Multi-select list: foo.[a, b]
+        if (nextToken.type === TokenType.LBRACKET) {
+          return this.parseDotBracket(left);
+        }
+
+        // Standard field access or function call
         const field = this.parseIdentifier();
+
+        // Check if this is a function call: foo.func(args)
+        // This is equivalent to: foo | func(args)
+        if (this.lexer.peek().type === TokenType.LPAREN) {
+          const funcCall = this.parseFunctionCall(field);
+          return {
+            type: "pipe",
+            lhs: left,
+            rhs: funcCall,
+            dotSyntax: true,
+          };
+        }
+
         return { type: "fieldAccess", expression: left, field };
       }
 
@@ -329,15 +405,64 @@ export class Parser {
     const token = this.lexer.peek();
     switch (token.type) {
       case TokenType.STAR: {
-        // foo[*] - project
+        // At root level, [*...] could be:
+        // - [*] = array projection
+        // - [*.*] = multi-select list containing object projection chain
+        // We need to lookahead to distinguish
         this.lexer.consume(TokenType.STAR);
-        this.lexer.consume(TokenType.RBRACKET);
-        const projectNode: JsonSelector = {
-          type: "project",
-          expression: left,
+
+        // Check what comes after *
+        const nextToken = this.lexer.peek();
+        if (nextToken.type === TokenType.RBRACKET) {
+          // [*] - array projection
+          this.lexer.consume(TokenType.RBRACKET);
+          const projectNode: JsonSelector = {
+            type: "project",
+            expression: left,
+            projection: CURRENT_NODE,
+          };
+          return this.parseProjectionRHS(projectNode);
+        }
+
+        // Not just [*], so this is multi-select list starting with * expression
+        // We've already consumed *, so we need to build the expression from there
+        if (left !== CURRENT_NODE) {
+          // foo[*.something] is not valid - multi-select list after expression needs .[
+          throw new Error(
+            `Unexpected token after '[*' at position ${nextToken.offset}: ${nextToken.text}`,
+          );
+        }
+
+        // Build the rest of the * expression and continue parsing multi-select list
+        let starExpr: JsonSelector = {
+          type: "objectProject",
+          expression: CURRENT_NODE,
           projection: CURRENT_NODE,
         };
-        return this.parseProjectionRHS(projectNode);
+        // Continue parsing with led() until we hit comma or rbracket
+        let ledToken = this.lexer.peek();
+        while (
+          ledToken.type !== TokenType.EOF &&
+          ledToken.type !== TokenType.COMMA &&
+          ledToken.type !== TokenType.RBRACKET &&
+          TOKEN_BP[ledToken.type] > 0
+        ) {
+          starExpr = this.led(starExpr, ledToken);
+          ledToken = this.lexer.peek();
+        }
+
+        const expressions: JsonSelector[] = [starExpr];
+
+        while (this.lexer.tryConsume(TokenType.COMMA)) {
+          expressions.push(this.expression(0));
+        }
+
+        this.lexer.consume(TokenType.RBRACKET);
+
+        return {
+          type: "multiSelectList",
+          expressions,
+        };
       }
 
       case TokenType.RAW_STRING: {
@@ -373,10 +498,30 @@ export class Parser {
         return this.parseProjectionRHS(sliceNode);
       }
 
-      default:
-        throw new Error(
-          `Unexpected token after '[' at position ${token.offset}: ${token.text}`,
-        );
+      default: {
+        // Multi-select list: [expr1, expr2, ...]
+        // Only valid at root level (left === CURRENT_NODE), not after foo[
+        // Requires foo.[a, b] syntax, not foo[a, b]
+        if (left !== CURRENT_NODE) {
+          throw new Error(
+            `Unexpected token after '[' at position ${token.offset}: ${token.text}`,
+          );
+        }
+
+        const expressions: JsonSelector[] = [];
+        expressions.push(this.expression(0));
+
+        while (this.lexer.tryConsume(TokenType.COMMA)) {
+          expressions.push(this.expression(0));
+        }
+
+        this.lexer.consume(TokenType.RBRACKET);
+
+        return {
+          type: "multiSelectList",
+          expressions,
+        };
+      }
     }
   }
 
@@ -419,10 +564,10 @@ export class Parser {
    * This allows proper precedence: `foo[] | bar` pipes the projection result,
    * while `foo[].bar` continues the projection to select .bar from each element.
    *
-   * NOTE: Unlike jmespath which uses binding power (rbp) to control projection continuation,
-   * we use a fixed threshold. This is because our AST structure is different: jmespath chains
-   * projections (project(project(x, y), z)) while we nest them in the projection field
-   * (project(x, project(y, z))). Both approaches produce the same JMESPath-compatible results,
+   * NOTE: Unlike the reference implementation which uses binding power (rbp) to control
+   * projection continuation, we use a fixed threshold. This is because our AST structure is
+   * different: the reference chains projections (project(project(x, y), z)) while we nest
+   * them in the projection field (project(x, project(y, z))). Both approaches produce the same results,
    * but our nested structure creates clearer semantics for expressions like foo[*].bar[*].
    */
   private parseProjectionRHS(projectionNode: JsonSelector): JsonSelector {
@@ -464,8 +609,8 @@ export class Parser {
       // [*] nodes already have a projection field, so update it directly
       //
       // SAFETY: This mutation is safe because projectionNode is freshly created
-      // in parseBracketExpression (line 335), parseFilterExpression (line 399),
-      // or parseSlice (line 508), and has not been shared or returned yet.
+      // in parseBracketExpression, parseFilterExpression, or parseSlice,
+      // and has not been shared or returned yet.
       // Mutating here avoids allocating a new node for the common case of [*].bar
       if (projectionNode.type === "project") {
         projectionNode.projection = rhs;
@@ -532,5 +677,160 @@ export class Parser {
 
     const token = this.lexer.peek();
     throw new Error(`Expected identifier at position ${token.offset}`);
+  }
+
+  /**
+   * Parse function call: name(arg1, arg2, ...)
+   * Called after identifier has been consumed and ( has been peeked
+   */
+  private parseFunctionCall(name: string): JsonSelector {
+    this.lexer.consume(TokenType.LPAREN);
+
+    const args: JsonSelector[] = [];
+
+    // Handle empty args: func()
+    if (this.lexer.peek().type !== TokenType.RPAREN) {
+      // First argument
+      args.push(this.expression(0));
+
+      // Additional arguments
+      while (this.lexer.tryConsume(TokenType.COMMA)) {
+        args.push(this.expression(0));
+      }
+    }
+
+    this.lexer.consume(TokenType.RPAREN);
+
+    return {
+      type: "functionCall",
+      name,
+      args,
+    };
+  }
+
+  /**
+   * Parse multi-select hash: {key: expr, key: expr, ...}
+   */
+  private parseMultiSelectHash(): JsonSelector {
+    const startToken = this.lexer.consume(TokenType.LBRACE);
+    const entries: Array<{ key: string; value: JsonSelector }> = [];
+
+    // Empty multi-select hash {} is invalid
+    if (this.lexer.peek().type === TokenType.RBRACE) {
+      throw new Error(
+        `Invalid empty multi-select hash at position ${startToken.offset}`,
+      );
+    }
+
+    // Parse first key-value pair
+    entries.push(this.parseMultiSelectHashEntry());
+
+    // Parse remaining comma-separated entries
+    while (this.lexer.tryConsume(TokenType.COMMA)) {
+      entries.push(this.parseMultiSelectHashEntry());
+    }
+
+    this.lexer.consume(TokenType.RBRACE);
+
+    return {
+      type: "multiSelectHash",
+      entries,
+    };
+  }
+
+  /**
+   * Parse a single key: value entry in a multi-select hash
+   */
+  private parseMultiSelectHashEntry(): { key: string; value: JsonSelector } {
+    const key = this.parseIdentifier();
+    this.lexer.consume(TokenType.COLON);
+    const value = this.expression(0);
+    return { key, value };
+  }
+
+  /**
+   * Parse object projection: creates the objectProject node and parses
+   * any continuation operators (similar to parseProjectionRHS).
+   */
+  private parseObjectProjection(expression: JsonSelector): JsonSelector {
+    let projection: JsonSelector = CURRENT_NODE;
+
+    const token = this.lexer.peek();
+    if (
+      token.type !== TokenType.EOF &&
+      TOKEN_BP[token.type] >= PROJECTION_STOP_BP &&
+      (token.type === TokenType.DOT ||
+        token.type === TokenType.LBRACKET ||
+        token.type === TokenType.FLATTEN_BRACKET ||
+        token.type === TokenType.FILTER_BRACKET)
+    ) {
+      let rhsToken = this.lexer.peek();
+      while (
+        rhsToken.type !== TokenType.EOF &&
+        TOKEN_BP[rhsToken.type] >= PROJECTION_STOP_BP
+      ) {
+        projection = this.led(projection, rhsToken);
+        rhsToken = this.lexer.peek();
+      }
+    }
+
+    return { type: "objectProject", expression, projection };
+  }
+
+  /**
+   * Parse dot-bracket: foo.[...] which could be:
+   * - Multi-select list: foo.[a, b]
+   * - Array projection: foo.[*]
+   *
+   * Note: foo.[0], foo.[:], and foo.['id'] are rejected as syntax errors.
+   */
+  private parseDotBracket(left: JsonSelector): JsonSelector {
+    this.lexer.consume(TokenType.LBRACKET);
+    const token = this.lexer.peek();
+
+    // After .[, only STAR and expressions are valid
+    // NUMBER, COLON, RAW_STRING are NOT valid (use foo[0], foo[:], foo['id'] instead)
+    if (token.type === TokenType.STAR) {
+      // .[*] is valid as projection
+      this.lexer.advance();
+      this.lexer.consume(TokenType.RBRACKET);
+      const projectNode: JsonSelector = {
+        type: "project",
+        expression: left,
+        projection: CURRENT_NODE,
+      };
+      return this.parseProjectionRHS(projectNode);
+    }
+
+    // NUMBER, COLON, RAW_STRING after .[ are syntax errors
+    if (
+      token.type === TokenType.NUMBER ||
+      token.type === TokenType.COLON ||
+      token.type === TokenType.RAW_STRING
+    ) {
+      throw new Error(
+        `Unexpected token after '.[' at position ${token.offset}: ${token.text}`,
+      );
+    }
+
+    // Multi-select list: [expr1, expr2, ...]
+    const expressions: JsonSelector[] = [];
+    expressions.push(this.expression(0));
+
+    while (this.lexer.tryConsume(TokenType.COMMA)) {
+      expressions.push(this.expression(0));
+    }
+
+    this.lexer.consume(TokenType.RBRACKET);
+
+    return {
+      type: "pipe",
+      lhs: left,
+      rhs: {
+        type: "multiSelectList",
+        expressions,
+      },
+      dotSyntax: true,
+    };
   }
 }

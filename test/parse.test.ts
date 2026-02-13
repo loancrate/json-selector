@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { JsonSelector } from "../src/ast";
 import { parseJsonSelector } from "../src/parse";
 
@@ -318,6 +319,7 @@ describe("parseJsonSelector", () => {
             rhs: {
               type: "literal",
               value: 1,
+              backtickSyntax: true,
             },
           },
         },
@@ -365,6 +367,7 @@ describe("parseJsonSelector", () => {
                   rhs: {
                     type: "literal",
                     value: "primary",
+                    backtickSyntax: true,
                   },
                 },
               },
@@ -468,13 +471,14 @@ describe("parseJsonSelector", () => {
     test("current alone", () => {
       expect(parseJsonSelector("@")).toStrictEqual<JsonSelector>({
         type: "current",
+        explicit: true,
       });
     });
 
     test("current with field access", () => {
       expect(parseJsonSelector("@.foo")).toStrictEqual<JsonSelector>({
         type: "fieldAccess",
-        expression: { type: "current" },
+        expression: { type: "current", explicit: true },
         field: "foo",
       });
     });
@@ -482,7 +486,7 @@ describe("parseJsonSelector", () => {
     test("current with index access", () => {
       expect(parseJsonSelector("@[0]")).toStrictEqual<JsonSelector>({
         type: "indexAccess",
-        expression: { type: "current" },
+        expression: { type: "current", explicit: true },
         index: 0,
       });
     });
@@ -581,6 +585,7 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector("`123`")).toStrictEqual<JsonSelector>({
         type: "literal",
         value: 123,
+        backtickSyntax: true,
       });
     });
 
@@ -588,6 +593,7 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector('`"hello"`')).toStrictEqual<JsonSelector>({
         type: "literal",
         value: "hello",
+        backtickSyntax: true,
       });
     });
 
@@ -595,6 +601,7 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector("`null`")).toStrictEqual<JsonSelector>({
         type: "literal",
         value: null,
+        backtickSyntax: true,
       });
     });
 
@@ -602,6 +609,7 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector("`true`")).toStrictEqual<JsonSelector>({
         type: "literal",
         value: true,
+        backtickSyntax: true,
       });
     });
 
@@ -609,6 +617,7 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector("`false`")).toStrictEqual<JsonSelector>({
         type: "literal",
         value: false,
+        backtickSyntax: true,
       });
     });
 
@@ -616,6 +625,7 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector('`{"a":1}`')).toStrictEqual<JsonSelector>({
         type: "literal",
         value: { a: 1 },
+        backtickSyntax: true,
       });
     });
 
@@ -623,6 +633,7 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector("`[1, 2, 3]`")).toStrictEqual<JsonSelector>({
         type: "literal",
         value: [1, 2, 3],
+        backtickSyntax: true,
       });
     });
 
@@ -630,6 +641,7 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector("`invalid`")).toStrictEqual<JsonSelector>({
         type: "literal",
         value: "invalid",
+        backtickSyntax: true,
       });
     });
   });
@@ -929,8 +941,8 @@ describe("parseJsonSelector", () => {
       expect(() => parseJsonSelector("foo[?x")).toThrow(/Expected.*]/);
     });
 
-    test("! in infix position throws (hits line 306)", () => {
-      // This hits the default case in led() because ! is a prefix-only operator
+    test("! in infix position throws", () => {
+      // Hits the default case in led() because ! is a prefix-only operator
       expect(() => parseJsonSelector("foo !bar")).toThrow(
         "Unexpected token at position",
       );
@@ -944,9 +956,10 @@ describe("parseJsonSelector", () => {
       expect(() => parseJsonSelector("(foo")).toThrow(/Expected.*\)/);
     });
 
-    test("unexpected token after [ throws", () => {
-      // [foo] where foo is an identifier - not a valid bracket expression
-      expect(() => parseJsonSelector("[foo]")).toThrow(
+    test("unexpected token after foo[ throws", () => {
+      // foo[bar] where bar is an identifier - not a valid bracket expression
+      // Requires foo.[bar] syntax for multi-select list
+      expect(() => parseJsonSelector("foo[bar]")).toThrow(
         "Unexpected token after '['",
       );
     });
@@ -970,12 +983,16 @@ describe("parseJsonSelector", () => {
       );
     });
 
-    test("! after projection throws (hits line 484)", () => {
-      // After foo[*], the ! token has bp=45 >= 10, but it's not a continuation token
-      // This hits line 484 (return projectionNode) then line 306 (led default)
+    test("! after projection throws", () => {
+      // After foo[*], ! has high binding power but isn't a valid continuation token
+      // Falls through parseProjectionRHS, then hits the default case in led()
       expect(() => parseJsonSelector("foo[*] !bar")).toThrow(
         "Unexpected token at position",
       );
+    });
+
+    test("object projection with non-continuation high-bp token", () => {
+      expect(() => parseJsonSelector("* !foo")).toThrow();
     });
   });
 
@@ -1016,6 +1033,82 @@ describe("parseJsonSelector", () => {
         end: undefined,
         step: -1,
       });
+    });
+  });
+
+  describe("keyword literals", () => {
+    test("true keyword", () => {
+      expect(parseJsonSelector("true")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: true,
+      });
+    });
+
+    test("false keyword", () => {
+      expect(parseJsonSelector("false")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: false,
+      });
+    });
+
+    test("null keyword", () => {
+      expect(parseJsonSelector("null")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: null,
+      });
+    });
+  });
+
+  describe("multi-select list", () => {
+    test("multi-select list with 3+ items", () => {
+      const result = parseJsonSelector("[a, b, c]");
+      assert(result.type === "multiSelectList");
+      expect(result.expressions).toHaveLength(3);
+      expect(result.expressions[0]).toStrictEqual({
+        type: "identifier",
+        id: "a",
+      });
+      expect(result.expressions[1]).toStrictEqual({
+        type: "identifier",
+        id: "b",
+      });
+      expect(result.expressions[2]).toStrictEqual({
+        type: "identifier",
+        id: "c",
+      });
+    });
+
+    test("multi-select list starting with star", () => {
+      const result = parseJsonSelector("[*, foo]");
+      assert(result.type === "multiSelectList");
+      expect(result.expressions).toHaveLength(2);
+      expect(result.expressions[0].type).toBe("objectProject");
+      expect(result.expressions[1]).toStrictEqual({
+        type: "identifier",
+        id: "foo",
+      });
+    });
+  });
+
+  describe("object projection RHS", () => {
+    test("object projection with field access RHS", () => {
+      const result = parseJsonSelector("foo.*.bar");
+      expect(result).toStrictEqual<JsonSelector>({
+        type: "objectProject",
+        expression: { type: "identifier", id: "foo" },
+        projection: {
+          type: "fieldAccess",
+          expression: { type: "current" },
+          field: "bar",
+        },
+      });
+    });
+
+    test("chained object projection has objectProject as projection", () => {
+      // foo.*.* - the first .* creates objectProject(foo), the second .* is the projection
+      const result = parseJsonSelector("foo.*.*");
+      assert(result.type === "objectProject");
+      expect(result.projection?.type).toBe("objectProject");
     });
   });
 });

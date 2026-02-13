@@ -64,6 +64,12 @@ const isolatedCases: BenchmarkCase[] = [
   { name: "collection: filter", expression: "foo[?bar == `1`]" },
   { name: "collection: slice start:stop", expression: "foo[1:3]" },
   { name: "collection: slice step", expression: "foo[::2]" },
+  { name: "collection: object project", expression: "foo.*" },
+
+  // Functions
+  { name: "function: single arg", expression: "length(foo)" },
+  { name: "function: multiple args", expression: "starts_with(foo, 'bar')" },
+  { name: "function: expression ref arg", expression: "sort_by(foo, &bar)" },
 
   // Logical
   { name: "logical: not", expression: "!foo" },
@@ -81,6 +87,9 @@ const isolatedCases: BenchmarkCase[] = [
   { name: "syntax: escaped quote", expression: '"foo\\"bar"' },
   { name: "syntax: raw escape", expression: "'it\\'s'" },
   { name: "syntax: unicode escape", expression: '"\\u0041"' },
+  { name: "syntax: expression ref", expression: "&foo.bar" },
+  { name: "syntax: multi-select list", expression: "[foo, bar, baz]" },
+  { name: "syntax: multi-select hash", expression: "{a: foo, b: bar, c: baz}" },
 
   // Composition
   { name: "composition: pipe", expression: "foo | bar" },
@@ -160,6 +169,17 @@ const realWorldCases: BenchmarkCase[] = [
     name: "real: flatten filter flatten pipe",
     expression: "data[].items[?type == 'primary'][].value | [0]",
   },
+
+  // Multi-select and functions
+  {
+    name: "real: multi-select hash",
+    expression: "people[*].{name: name, age: age}",
+  },
+  {
+    name: "real: function in pipe",
+    expression: "people[?age > `20`] | sort_by(@, &age)",
+  },
+  { name: "real: object projection", expression: "config.settings.*.value" },
 ];
 
 // 4. Stress Test Benchmarks
@@ -202,6 +222,11 @@ const stressCases: BenchmarkCase[] = [
     name: "stress: pipe + project + filter",
     expression:
       "users | [*].orders[?total > `100`] | [].items[?inStock == `true`]",
+  },
+  {
+    name: "stress: functions + multi-select",
+    expression:
+      "data[*].{name: name, total: items[*].price} | sort_by(@, &total) | [0]",
   },
 ];
 
