@@ -134,6 +134,12 @@ function evaluate(
         const lv = evaluate(lhs, context, evalCtx);
         return !isFalseOrEmpty(lv) ? lv : evaluate(rhs, context, evalCtx);
       },
+      ternary({ condition, consequent, alternate }) {
+        const cv = evaluate(condition, context, evalCtx);
+        return isFalseOrEmpty(cv)
+          ? evaluate(alternate, context, evalCtx)
+          : evaluate(consequent, context, evalCtx);
+      },
       pipe({ lhs, rhs }) {
         return evaluate(rhs, evaluate(lhs, context, evalCtx), evalCtx);
       },

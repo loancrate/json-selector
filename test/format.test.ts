@@ -1,5 +1,6 @@
 import { JsonSelector } from "../src/ast";
 import { formatJsonSelector } from "../src/format";
+import { parseJsonSelector } from "../src/parse";
 
 describe("formatJsonSelector", () => {
   describe("simple nodes", () => {
@@ -188,6 +189,77 @@ describe("formatJsonSelector", () => {
           },
         }),
       ).toBe("a == `1` && (b == `2` || c == `3`)");
+    });
+  });
+
+  describe("ternary operator", () => {
+    test("formats simple ternary", () => {
+      expect(
+        formatJsonSelector({
+          type: "ternary",
+          condition: { type: "identifier", id: "a" },
+          consequent: { type: "identifier", id: "b" },
+          alternate: { type: "identifier", id: "c" },
+        }),
+      ).toBe("a ? b : c");
+    });
+
+    test("formats right-associative ternary chain without extra parens", () => {
+      expect(
+        formatJsonSelector({
+          type: "ternary",
+          condition: { type: "identifier", id: "a" },
+          consequent: { type: "identifier", id: "b" },
+          alternate: {
+            type: "ternary",
+            condition: { type: "identifier", id: "c" },
+            consequent: { type: "identifier", id: "d" },
+            alternate: { type: "identifier", id: "e" },
+          },
+        }),
+      ).toBe("a ? b : c ? d : e");
+    });
+
+    test("parenthesizes ternary condition when needed", () => {
+      expect(
+        formatJsonSelector({
+          type: "ternary",
+          condition: {
+            type: "ternary",
+            condition: { type: "identifier", id: "a" },
+            consequent: { type: "identifier", id: "b" },
+            alternate: { type: "identifier", id: "c" },
+          },
+          consequent: { type: "identifier", id: "d" },
+          alternate: { type: "identifier", id: "e" },
+        }),
+      ).toBe("(a ? b : c) ? d : e");
+    });
+
+    test("parenthesizes ternary in higher-precedence context", () => {
+      expect(
+        formatJsonSelector({
+          type: "and",
+          lhs: { type: "identifier", id: "a" },
+          rhs: {
+            type: "ternary",
+            condition: { type: "identifier", id: "b" },
+            consequent: { type: "identifier", id: "c" },
+            alternate: { type: "identifier", id: "d" },
+          },
+        }),
+      ).toBe("a && (b ? c : d)");
+    });
+
+    test.each([
+      "a ? b : c",
+      "a ? b : c ? d : e",
+      "(a ? b : c) ? d : e",
+      "a || b ? c : d | e",
+    ])("round-trips parse -> format -> parse: %s", (expression) => {
+      const original = parseJsonSelector(expression);
+      const formatted = formatJsonSelector(original);
+      expect(parseJsonSelector(formatted)).toStrictEqual(original);
     });
   });
 

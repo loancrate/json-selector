@@ -117,6 +117,14 @@ export interface JsonSelectorOr {
   rhs: JsonSelector;
 }
 
+/** Conditional expression (`condition ? consequent : alternate`) using JMESPath truthiness rules. */
+export interface JsonSelectorTernary {
+  type: "ternary";
+  condition: JsonSelector;
+  consequent: JsonSelector;
+  alternate: JsonSelector;
+}
+
 /** Pipe operator (`|`) that evaluates the right side against the result of the left side, resetting projections. */
 export interface JsonSelectorPipe {
   type: "pipe";
@@ -169,6 +177,7 @@ export type JsonSelector =
   | JsonSelectorCompare
   | JsonSelectorAnd
   | JsonSelectorOr
+  | JsonSelectorTernary
   | JsonSelectorPipe
   | JsonSelectorFunctionCall
   | JsonSelectorExpressionRef
