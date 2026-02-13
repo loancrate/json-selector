@@ -260,7 +260,7 @@ export function filter(
   return result;
 }
 
-/** Extracts a sub-array using Python-style slice semantics with optional start, end, and step. */
+/** Extracts a sub-sequence from an array or string using Python-style slice semantics. */
 export function slice(
   value: unknown[],
   start: number | undefined,
@@ -268,22 +268,40 @@ export function slice(
   step?: number,
 ): unknown[];
 export function slice(
-  value: unknown,
+  value: string,
   start: number | undefined,
   end?: number,
   step?: number,
-): unknown[] | null;
+): string;
 export function slice(
   value: unknown,
   start: number | undefined,
   end?: number,
   step?: number,
-): unknown[] | null {
-  if (!isArray(value)) {
-    return null;
+): unknown[] | string | null;
+export function slice(
+  value: unknown,
+  start: number | undefined,
+  end?: number,
+  step?: number,
+): unknown[] | string | null {
+  if (isArray(value)) {
+    return collectSlice(value, start, end, step);
   }
+  if (typeof value === "string") {
+    return collectSlice(Array.from(value), start, end, step).join("");
+  }
+  return null;
+}
+
+function collectSlice<T>(
+  value: readonly T[],
+  start: number | undefined,
+  end?: number,
+  step?: number,
+): T[] {
   ({ start, end, step } = normalizeSlice(value.length, start, end, step));
-  const collected: unknown[] = [];
+  const collected: T[] = [];
   if (step > 0) {
     for (let i = start; i < end; i += step) {
       collected.push(value[i]);

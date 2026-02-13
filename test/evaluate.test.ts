@@ -100,6 +100,44 @@ describe("evaluate", () => {
       "bob",
     ]);
   });
+
+  test("slice supports strings", () => {
+    const selector = parseJsonSelector("s[1:3]");
+    expect(evaluateJsonSelector(selector, { s: "foobar" })).toBe("oo");
+  });
+
+  test("slice supports reverse strings", () => {
+    const selector = parseJsonSelector("s[::-1]");
+    expect(evaluateJsonSelector(selector, { s: "foobar" })).toBe("raboof");
+  });
+
+  test("slice supports string step", () => {
+    const selector = parseJsonSelector("s[::2]");
+    expect(evaluateJsonSelector(selector, { s: "abcdef" })).toBe("ace");
+  });
+
+  test("slice on string uses Unicode code points", () => {
+    const selector = parseJsonSelector("s[1:3]");
+    expect(
+      evaluateJsonSelector(selector, {
+        s: "\ud83d\ude00\ud83d\ude03\ud83d\ude04\ud83d\ude01",
+      }),
+    ).toBe("\ud83d\ude03\ud83d\ude04");
+  });
+
+  test("slice reverses Unicode strings by code point", () => {
+    const selector = parseJsonSelector("s[::-1]");
+    expect(
+      evaluateJsonSelector(selector, {
+        s: "\ud83d\ude00\ud83d\ude03\ud83d\ude04\ud83d\ude01",
+      }),
+    ).toBe("\ud83d\ude01\ud83d\ude04\ud83d\ude03\ud83d\ude00");
+  });
+
+  test("slice returns null for non-array/non-string values", () => {
+    const selector = parseJsonSelector("s[1:3]");
+    expect(evaluateJsonSelector(selector, { s: 123 })).toBeNull();
+  });
 });
 
 describe("project", () => {
