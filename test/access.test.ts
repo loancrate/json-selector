@@ -1,9 +1,12 @@
 import {
-  makeJsonSelectorAccessor,
   accessWithJsonSelector,
   bindJsonSelectorAccessor,
   invertedSlice,
+  makeJsonSelectorAccessor,
 } from "../src/access";
+import { NUMBER_TYPE } from "../src/functions/datatype";
+import { FunctionRegistry } from "../src/functions/registry";
+import { arg } from "../src/functions/validation";
 import { parseJsonSelector } from "../src/parse";
 
 describe("makeJsonSelectorAccessor", () => {
@@ -537,6 +540,13 @@ describe("makeJsonSelectorAccessor", () => {
       expect(obj.a).toStrictEqual([10, 99, 30]);
     });
 
+    test("set negative index sets from end of array", () => {
+      const acc = accessor("a[-1]");
+      const obj = { a: [10, 20, 30] };
+      acc.set(99, obj);
+      expect(obj.a).toStrictEqual([10, 20, 99]);
+    });
+
     test("set on non-array is no-op", () => {
       const acc = accessor("a[0]");
       const obj = { a: "string" };
@@ -740,20 +750,18 @@ describe("makeJsonSelectorAccessor", () => {
         expect(acc.get({ a: [1, 2, 3] })).toStrictEqual([1, 2, 3]);
       });
 
-      test("set applies to each element (no-op for current)", () => {
+      test("set replaces array contents", () => {
         const acc = accessor("a[*]");
         const obj = { a: [1, 2, 3] };
-        // When projection is @, set on @ is a no-op
-        acc.set(99, obj);
-        expect(obj.a).toStrictEqual([1, 2, 3]);
+        acc.set([10, 20], obj);
+        expect(obj.a).toStrictEqual([10, 20]);
       });
 
-      test("delete on each element (no-op for current)", () => {
+      test("delete clears array", () => {
         const acc = accessor("a[*]");
         const obj = { a: [1, 2, 3] };
-        // When projection is @, delete on @ is a no-op
         acc.delete(obj);
-        expect(obj.a).toStrictEqual([1, 2, 3]);
+        expect(obj.a).toStrictEqual([]);
       });
     });
 
@@ -782,6 +790,126 @@ describe("makeJsonSelectorAccessor", () => {
       expect(acc.isValidContext({ a: [1] })).toBe(true);
       expect(acc.isValidContext({ a: "string" })).toBe(false);
       expect(acc.isValidContext({ a: null })).toBe(false);
+    });
+  });
+
+  describe("objectProject accessor (@.*)", () => {
+    describe("without explicit projection (projection undefined)", () => {
+      test("get returns object values", () => {
+        const acc = makeJsonSelectorAccessor({
+          type: "objectProject",
+          expression: { type: "current", explicit: true },
+          // projection is undefined
+        });
+        expect(acc.get({ a: 1, b: 2 })).toStrictEqual([1, 2]);
+      });
+
+      test("set sets all values", () => {
+        const acc = makeJsonSelectorAccessor({
+          type: "objectProject",
+          expression: { type: "current", explicit: true },
+        });
+        const obj = { a: 1, b: 2 };
+        acc.set(99, obj);
+        expect(obj).toStrictEqual({ a: 99, b: 99 });
+      });
+
+      test("delete clears all keys", () => {
+        const acc = makeJsonSelectorAccessor({
+          type: "objectProject",
+          expression: { type: "current", explicit: true },
+        });
+        const obj = { a: 1, b: 2 };
+        acc.delete(obj);
+        expect(obj).toStrictEqual({});
+      });
+    });
+
+    describe("with projection (@.*.name)", () => {
+      test("get projects field from each value", () => {
+        const acc = accessor("@.*.name");
+        expect(
+          acc.get({ x: { name: "alice" }, y: { name: "bob" } }),
+        ).toStrictEqual(["alice", "bob"]);
+      });
+
+      test("set applies value to each value", () => {
+        const acc = accessor("@.*.name");
+        const obj = { x: { name: "alice" }, y: { name: "bob" } };
+        acc.set("updated", obj);
+        expect(obj).toStrictEqual({
+          x: { name: "updated" },
+          y: { name: "updated" },
+        });
+      });
+
+      test("delete removes field from each value", () => {
+        const acc = accessor("@.*.name");
+        const obj = {
+          x: { name: "alice", age: 1 },
+          y: { name: "bob", age: 2 },
+        };
+        acc.delete(obj);
+        expect(obj).toStrictEqual({ x: { age: 1 }, y: { age: 2 } });
+      });
+    });
+
+    describe("with current projection (@.*)", () => {
+      test("get returns object values", () => {
+        const acc = accessor("@.*");
+        expect(acc.get({ a: 1, b: 2 })).toStrictEqual([1, 2]);
+      });
+
+      test("get returns values with explicit current AST", () => {
+        const acc = makeJsonSelectorAccessor({
+          type: "objectProject",
+          expression: { type: "current", explicit: true },
+          projection: { type: "current" },
+        });
+        expect(acc.get({ a: 1, b: 2 })).toStrictEqual([1, 2]);
+      });
+
+      test("set sets all values", () => {
+        const acc = accessor("@.*");
+        const obj = { a: 1, b: 2 };
+        acc.set(99, obj);
+        expect(obj).toStrictEqual({ a: 99, b: 99 });
+      });
+
+      test("delete clears all keys", () => {
+        const acc = accessor("@.*");
+        const obj = { a: 1, b: 2 };
+        acc.delete(obj);
+        expect(obj).toStrictEqual({});
+      });
+    });
+
+    test("get on non-object returns null", () => {
+      const acc = accessor("@.*");
+      expect(acc.get("string")).toBeNull();
+      expect(acc.get([1, 2])).toBeNull();
+    });
+
+    test("set on non-object is no-op", () => {
+      const acc = accessor("@.*");
+      const arr = [1, 2];
+      acc.set(99, arr);
+      expect(arr).toStrictEqual([1, 2]);
+    });
+
+    test("delete on non-object is no-op", () => {
+      const acc = accessor("@.*");
+      const arr = [1, 2];
+      acc.delete(arr);
+      expect(arr).toStrictEqual([1, 2]);
+    });
+
+    test("isValidContext checks for object", () => {
+      const acc = accessor("@.*");
+      expect(acc.isValidContext(null)).toBe(false);
+      expect(acc.isValidContext([1])).toBe(false);
+      expect(acc.isValidContext({})).toBe(true);
+      expect(acc.isValidContext({ a: 1 })).toBe(true);
     });
   });
 
@@ -1066,6 +1194,124 @@ describe("makeJsonSelectorAccessor", () => {
   });
 
   // ============================================================
+  // Read-only accessors
+  // ============================================================
+  describe("functionCall accessor", () => {
+    test("get evaluates function", () => {
+      const acc = accessor("length(@)");
+      expect(acc.get([1, 2, 3])).toBe(3);
+    });
+
+    test("set is no-op", () => {
+      const acc = accessor("length(@)");
+      const obj = [1, 2, 3];
+      acc.set(99, obj);
+      expect(obj).toStrictEqual([1, 2, 3]);
+    });
+
+    test("delete is no-op", () => {
+      const acc = accessor("length(@)");
+      const obj = [1, 2, 3];
+      acc.delete(obj);
+      expect(obj).toStrictEqual([1, 2, 3]);
+    });
+
+    test("isValidContext always returns true", () => {
+      const acc = accessor("length(@)");
+      expect(acc.isValidContext(null)).toBe(true);
+      expect(acc.isValidContext([])).toBe(true);
+    });
+  });
+
+  describe("expressionRef accessor", () => {
+    test("get returns null", () => {
+      const acc = accessor("&foo");
+      expect(acc.get({ foo: "bar" })).toBeNull();
+    });
+
+    test("set is no-op", () => {
+      const acc = accessor("&foo");
+      const obj = { foo: "bar" };
+      acc.set("changed", obj);
+      expect(obj.foo).toBe("bar");
+    });
+
+    test("delete is no-op", () => {
+      const acc = accessor("&foo");
+      const obj = { foo: "bar" };
+      acc.delete(obj);
+      expect(obj).toStrictEqual({ foo: "bar" });
+    });
+
+    test("isValidContext always returns true", () => {
+      const acc = accessor("&foo");
+      expect(acc.isValidContext(null)).toBe(true);
+    });
+  });
+
+  describe("multiSelectList accessor", () => {
+    test("get returns array of selected values", () => {
+      const acc = accessor("[a, b]");
+      expect(acc.get({ a: 1, b: 2, c: 3 })).toStrictEqual([1, 2]);
+    });
+
+    test("set is no-op", () => {
+      const acc = accessor("[a, b]");
+      const obj = { a: 1, b: 2 };
+      acc.set([10, 20], obj);
+      expect(obj).toStrictEqual({ a: 1, b: 2 });
+    });
+
+    test("delete is no-op", () => {
+      const acc = accessor("[a, b]");
+      const obj = { a: 1, b: 2 };
+      acc.delete(obj);
+      expect(obj).toStrictEqual({ a: 1, b: 2 });
+    });
+
+    test("get returns null for null context", () => {
+      const acc = accessor("[a, b]");
+      expect(acc.get(null)).toBeNull();
+    });
+
+    test("isValidContext always returns true", () => {
+      const acc = accessor("[a, b]");
+      expect(acc.isValidContext(null)).toBe(true);
+    });
+  });
+
+  describe("multiSelectHash accessor", () => {
+    test("get returns object with selected values", () => {
+      const acc = accessor("{x: a, y: b}");
+      expect(acc.get({ a: 1, b: 2, c: 3 })).toStrictEqual({ x: 1, y: 2 });
+    });
+
+    test("set is no-op", () => {
+      const acc = accessor("{x: a, y: b}");
+      const obj = { a: 1, b: 2 };
+      acc.set({ x: 10, y: 20 }, obj);
+      expect(obj).toStrictEqual({ a: 1, b: 2 });
+    });
+
+    test("delete is no-op", () => {
+      const acc = accessor("{x: a, y: b}");
+      const obj = { a: 1, b: 2 };
+      acc.delete(obj);
+      expect(obj).toStrictEqual({ a: 1, b: 2 });
+    });
+
+    test("get returns null for null context", () => {
+      const acc = accessor("{x: a, y: b}");
+      expect(acc.get(null)).toBeNull();
+    });
+
+    test("isValidContext always returns true", () => {
+      const acc = accessor("{x: a, y: b}");
+      expect(acc.isValidContext(null)).toBe(true);
+    });
+  });
+
+  // ============================================================
   // Complex integration tests (adapted from original)
   // ============================================================
   describe("complex expressions", () => {
@@ -1285,5 +1531,43 @@ describe("invertedSlice", () => {
 
   test("slice nothing leaves everything", () => {
     expect(invertedSlice([0, 1, 2], 0, 0)).toStrictEqual([0, 1, 2]);
+  });
+});
+
+describe("AccessorOptions", () => {
+  test("custom function provider is used by accessor", () => {
+    const registry = new FunctionRegistry();
+    registry.register({
+      name: "double",
+      signatures: [[arg("value", NUMBER_TYPE)]],
+      handler: ({ args }) => Number(args[0]) * 2,
+    });
+
+    const selector = parseJsonSelector("double(@)");
+    const acc = makeJsonSelectorAccessor(selector, {
+      functionProvider: registry,
+    });
+    expect(acc.get(5)).toBe(10);
+  });
+
+  test("custom function provider works with accessWithJsonSelector", () => {
+    const registry = new FunctionRegistry();
+    registry.register({
+      name: "double",
+      signatures: [[arg("value", NUMBER_TYPE)]],
+      handler: ({ args }) => Number(args[0]) * 2,
+    });
+
+    const selector = parseJsonSelector("double(@)");
+    const acc = accessWithJsonSelector(selector, 7, 7, {
+      functionProvider: registry,
+    });
+    expect(acc.get()).toBe(14);
+  });
+
+  test("accessor defaults to builtins when no options provided", () => {
+    const selector = parseJsonSelector("length(@)");
+    const acc = makeJsonSelectorAccessor(selector);
+    expect(acc.get([1, 2, 3])).toBe(3);
   });
 });

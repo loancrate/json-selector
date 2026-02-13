@@ -40,11 +40,11 @@ export interface Visitor<R, C> {
   and(node: JsonSelectorAnd, context: C): R;
   or(node: JsonSelectorOr, context: C): R;
   pipe(node: JsonSelectorPipe, context: C): R;
-  functionCall?(node: JsonSelectorFunctionCall, context: C): R;
-  expressionRef?(node: JsonSelectorExpressionRef, context: C): R;
-  multiSelectList?(node: JsonSelectorMultiSelectList, context: C): R;
-  multiSelectHash?(node: JsonSelectorMultiSelectHash, context: C): R;
-  objectProject?(node: JsonSelectorObjectProject, context: C): R;
+  functionCall(node: JsonSelectorFunctionCall, context: C): R;
+  expressionRef(node: JsonSelectorExpressionRef, context: C): R;
+  multiSelectList(node: JsonSelectorMultiSelectList, context: C): R;
+  multiSelectHash(node: JsonSelectorMultiSelectHash, context: C): R;
+  objectProject(node: JsonSelectorObjectProject, context: C): R;
 }
 
 export function visitJsonSelector<R, C>(
@@ -86,29 +86,14 @@ export function visitJsonSelector<R, C>(
     case "pipe":
       return visitor.pipe(selector, context);
     case "functionCall":
-      if (!visitor.functionCall) {
-        throw new Error(`Unsupported node type: ${selector.type}`);
-      }
       return visitor.functionCall(selector, context);
     case "expressionRef":
-      if (!visitor.expressionRef) {
-        throw new Error(`Unsupported node type: ${selector.type}`);
-      }
       return visitor.expressionRef(selector, context);
     case "multiSelectList":
-      if (!visitor.multiSelectList) {
-        throw new Error(`Unsupported node type: ${selector.type}`);
-      }
       return visitor.multiSelectList(selector, context);
     case "multiSelectHash":
-      if (!visitor.multiSelectHash) {
-        throw new Error(`Unsupported node type: ${selector.type}`);
-      }
       return visitor.multiSelectHash(selector, context);
     case "objectProject":
-      if (!visitor.objectProject) {
-        throw new Error(`Unsupported node type: ${selector.type}`);
-      }
       return visitor.objectProject(selector, context);
   }
 }

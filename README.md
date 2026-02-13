@@ -1,15 +1,12 @@
 # LoanCrate JSON Selectors
 
-LoanCrate JSON Selectors are based on a subset of [JMESPath](https://jmespath.org)
-with the following additions:
+LoanCrate JSON Selectors implement the full [JMESPath](https://jmespath.org) specification
+with the following extensions:
 
-- A shorthand/extension for selecting an object from an array based on ID.
+- A shorthand for selecting an object from an array based on ID.
 - A root-node expression, as added in the [JMESPath Community Edition](https://jmespath.site/main/#spec-root-node).
 
-Currently, the subset includes everything except [functions](https://jmespath.org/specification.html#functions-expressions),
-object projections ([`*` wildcard](https://jmespath.org/specification.html#wildcard-expressions) not within brackets),
-and multi-select [lists](https://jmespath.org/specification.html#multiselect-list) and [hashes](https://jmespath.org/specification.html#multiselect-hash).
-The library passes all of the [JMESPath compliance tests](https://github.com/jmespath/jmespath.test) not using those specific features.
+The library passes all [JMESPath compliance tests](https://github.com/jmespath/jmespath.test).
 
 To allow for selection by ID, we extend index expressions to accept a
 [raw string literal](https://jmespath.org/specification.html#raw-string-literals)

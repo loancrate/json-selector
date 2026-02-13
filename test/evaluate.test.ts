@@ -1,7 +1,8 @@
 import { evaluateJsonSelector, project } from "../src/evaluate";
+import { getBuiltinFunctionProvider } from "../src/functions/builtins";
 import { parseJsonSelector } from "../src/parse";
 
-describe("evaluateJsonSelector", () => {
+describe("evaluate", () => {
   test("projection with nested filter", () => {
     const obj = {
       reservations: [
@@ -47,10 +48,67 @@ describe("evaluateJsonSelector", () => {
     const selector = parseJsonSelector("arr[*]");
     expect(evaluateJsonSelector(selector, data)).toStrictEqual([1, 2, 3]);
   });
+
+  // JMESPath spec: "If the result of the expression applied to any individual
+  // element is null, it is not included in the collected set of results."
+  // See https://jmespath.org/specification.html#wildcard-expressions
+  test("projection filters null elements from array", () => {
+    const data = { arr: [1, null, 2, null, 3] };
+    const selector = parseJsonSelector("arr[*]");
+    expect(evaluateJsonSelector(selector, data)).toStrictEqual([1, 2, 3]);
+  });
+
+  test("objectProject filters null values", () => {
+    const selector = parseJsonSelector("@.*");
+    const data = { a: 1, b: null, c: 3 };
+    expect(evaluateJsonSelector(selector, data)).toStrictEqual([1, 3]);
+  });
+
+  test("expressionRef returns null when evaluated directly", () => {
+    const selector = parseJsonSelector("&foo");
+    expect(evaluateJsonSelector(selector, { foo: "bar" })).toBeNull();
+  });
+
+  test("multiSelectList returns null for null context", () => {
+    const selector = parseJsonSelector("[a, b]");
+    expect(evaluateJsonSelector(selector, null)).toBeNull();
+  });
+
+  test("multiSelectHash returns null for null context", () => {
+    const selector = parseJsonSelector("{x: a, y: b}");
+    expect(evaluateJsonSelector(selector, null)).toBeNull();
+  });
+
+  test("objectProject on non-object returns null", () => {
+    const selector = parseJsonSelector("@.*");
+    expect(evaluateJsonSelector(selector, "not-an-object")).toBeNull();
+    expect(evaluateJsonSelector(selector, [1, 2, 3])).toBeNull();
+  });
+
+  test("objectProject returns values", () => {
+    const selector = parseJsonSelector("@.*");
+    expect(evaluateJsonSelector(selector, { a: 1, b: 2 })).toStrictEqual([
+      1, 2,
+    ]);
+  });
+
+  test("objectProject with projection", () => {
+    const selector = parseJsonSelector("@.*.name");
+    const data = { x: { name: "alice" }, y: { name: "bob" } };
+    expect(evaluateJsonSelector(selector, data)).toStrictEqual([
+      "alice",
+      "bob",
+    ]);
+  });
 });
 
 describe("project", () => {
   test("returns array as-is when projection is undefined", () => {
-    expect(project([1, 2, 3], undefined, {})).toStrictEqual([1, 2, 3]);
+    expect(
+      project([1, 2, 3], undefined, {
+        rootContext: null,
+        functionProvider: getBuiltinFunctionProvider(),
+      }),
+    ).toStrictEqual([1, 2, 3]);
   });
 });
