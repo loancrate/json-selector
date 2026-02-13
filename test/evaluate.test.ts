@@ -134,40 +134,41 @@ describe("evaluate", () => {
     ).toBe("\ud83d\ude01\ud83d\ude04\ud83d\ude03\ud83d\ude00");
   });
 
-  test("slice supports string boundary and negative-index cases", () => {
-    const cases: Array<{
-      expression: string;
-      context: { s: string };
-      result: string;
-    }> = [
-      {
-        expression: "s[:]",
-        context: { s: "0123456789" },
-        result: "0123456789",
-      },
-      {
-        expression: "s[0:20]",
-        context: { s: "0123456789" },
-        result: "0123456789",
-      },
-      { expression: "s[10:-20]", context: { s: "0123456789" }, result: "" },
-      { expression: "s[-4:-1]", context: { s: "0123456789" }, result: "678" },
-      { expression: "s[:-5:-1]", context: { s: "0123456789" }, result: "9876" },
-      {
-        expression: "s[10:0:-1]",
-        context: { s: "0123456789" },
-        result: "987654321",
-      },
-      { expression: "s[8:2:-2]", context: { s: "0123456789" }, result: "864" },
-      { expression: "s[3:3]", context: { s: "0123456789" }, result: "" },
-      { expression: "s[::-1]", context: { s: "" }, result: "" },
-    ];
+  const stringSliceBoundaryCases: Array<{
+    expression: string;
+    context: { s: string };
+    result: string;
+  }> = [
+    {
+      expression: "s[:]",
+      context: { s: "0123456789" },
+      result: "0123456789",
+    },
+    {
+      expression: "s[0:20]",
+      context: { s: "0123456789" },
+      result: "0123456789",
+    },
+    { expression: "s[10:-20]", context: { s: "0123456789" }, result: "" },
+    { expression: "s[-4:-1]", context: { s: "0123456789" }, result: "678" },
+    { expression: "s[:-5:-1]", context: { s: "0123456789" }, result: "9876" },
+    {
+      expression: "s[10:0:-1]",
+      context: { s: "0123456789" },
+      result: "987654321",
+    },
+    { expression: "s[8:2:-2]", context: { s: "0123456789" }, result: "864" },
+    { expression: "s[3:3]", context: { s: "0123456789" }, result: "" },
+    { expression: "s[::-1]", context: { s: "" }, result: "" },
+  ];
 
-    for (const { expression, context, result } of cases) {
+  it.each(stringSliceBoundaryCases)(
+    "slice supports string boundary and negative-index case: $expression",
+    ({ expression, context, result }) => {
       const selector = parseJsonSelector(expression);
       expect(evaluateJsonSelector(selector, context)).toBe(result);
-    }
-  });
+    },
+  );
 
   test("slice throws for zero step on strings", () => {
     const selector = parseJsonSelector("s[8:2:0]");
