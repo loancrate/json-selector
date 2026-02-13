@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { Lexer } from "../src/lexer";
 import { describeTokenType, Token, TokenType } from "../src/token";
 
@@ -42,10 +41,11 @@ describe("Lexer", () => {
     ];
 
     test.each(cases)("tokenizes %s", (input, expectedType) => {
-      const token = tokenize(input);
-      expect(token.type).toBe(expectedType);
-      expect(token.text).toBe(input);
-      expect(token.offset).toBe(0);
+      expect(tokenize(input)).toMatchObject({
+        type: expectedType,
+        text: input,
+        offset: 0,
+      });
     });
   });
 
@@ -64,94 +64,102 @@ describe("Lexer", () => {
     ];
 
     test.each(cases)("tokenizes %s", (input, expectedType, expectedText) => {
-      const token = tokenize(input);
-      expect(token.type).toBe(expectedType);
-      expect(token.text).toBe(expectedText);
+      expect(tokenize(input)).toMatchObject({
+        type: expectedType,
+        text: expectedText,
+      });
     });
 
     test("distinguishes | from ||", () => {
-      const toks = tokens("| ||");
-      expect(toks).toHaveLength(2);
-      expect(toks[0].type).toBe(TokenType.PIPE);
-      expect(toks[1].type).toBe(TokenType.OR);
+      expect(tokens("| ||")).toMatchObject([
+        { type: TokenType.PIPE },
+        { type: TokenType.OR },
+      ]);
     });
 
     test("distinguishes ! from !=", () => {
-      const toks = tokens("! !=");
-      expect(toks).toHaveLength(2);
-      expect(toks[0].type).toBe(TokenType.NOT);
-      expect(toks[1].type).toBe(TokenType.NEQ);
+      expect(tokens("! !=")).toMatchObject([
+        { type: TokenType.NOT },
+        { type: TokenType.NEQ },
+      ]);
     });
 
     test("distinguishes < from <=", () => {
-      const toks = tokens("< <=");
-      expect(toks).toHaveLength(2);
-      expect(toks[0].type).toBe(TokenType.LT);
-      expect(toks[1].type).toBe(TokenType.LTE);
+      expect(tokens("< <=")).toMatchObject([
+        { type: TokenType.LT },
+        { type: TokenType.LTE },
+      ]);
     });
 
     test("distinguishes > from >=", () => {
-      const toks = tokens("> >=");
-      expect(toks).toHaveLength(2);
-      expect(toks[0].type).toBe(TokenType.GT);
-      expect(toks[1].type).toBe(TokenType.GTE);
+      expect(tokens("> >=")).toMatchObject([
+        { type: TokenType.GT },
+        { type: TokenType.GTE },
+      ]);
     });
   });
 
   describe("bracket variations", () => {
     test("tokenizes [", () => {
-      const token = tokenize("[");
-      expect(token.type).toBe(TokenType.LBRACKET);
-      expect(token.text).toBe("[");
+      expect(tokenize("[")).toMatchObject({
+        type: TokenType.LBRACKET,
+        text: "[",
+      });
     });
 
     test("tokenizes [?", () => {
-      const token = tokenize("[?");
-      expect(token.type).toBe(TokenType.FILTER_BRACKET);
-      expect(token.text).toBe("[?");
+      expect(tokenize("[?")).toMatchObject({
+        type: TokenType.FILTER_BRACKET,
+        text: "[?",
+      });
     });
 
     test("tokenizes []", () => {
-      const token = tokenize("[]");
-      expect(token.type).toBe(TokenType.FLATTEN_BRACKET);
-      expect(token.text).toBe("[]");
+      expect(tokenize("[]")).toMatchObject({
+        type: TokenType.FLATTEN_BRACKET,
+        text: "[]",
+      });
     });
 
     test("distinguishes [ from [? from []", () => {
-      const toks = tokens("[ [? []");
-      expect(toks).toHaveLength(3);
-      expect(toks[0].type).toBe(TokenType.LBRACKET);
-      expect(toks[1].type).toBe(TokenType.FILTER_BRACKET);
-      expect(toks[2].type).toBe(TokenType.FLATTEN_BRACKET);
+      expect(tokens("[ [? []")).toMatchObject([
+        { type: TokenType.LBRACKET },
+        { type: TokenType.FILTER_BRACKET },
+        { type: TokenType.FLATTEN_BRACKET },
+      ]);
     });
   });
 
   describe("strings", () => {
     describe("raw strings", () => {
       test("tokenizes basic raw string", () => {
-        const token = tokenize("'hello'");
-        assert(token.type === TokenType.RAW_STRING);
-        expect(token.text).toBe("'hello'");
-        expect(token.value).toBe("hello");
+        expect(tokenize("'hello'")).toMatchObject({
+          type: TokenType.RAW_STRING,
+          text: "'hello'",
+          value: "hello",
+        });
       });
 
       test("tokenizes raw string with escaped quote", () => {
-        const token = tokenize("'it\\'s'");
-        assert(token.type === TokenType.RAW_STRING);
-        expect(token.text).toBe("'it\\'s'");
-        expect(token.value).toBe("it's");
+        expect(tokenize("'it\\'s'")).toMatchObject({
+          type: TokenType.RAW_STRING,
+          text: "'it\\'s'",
+          value: "it's",
+        });
       });
 
       test("tokenizes raw string with multiple escapes", () => {
-        const token = tokenize("'a\\'b\\'c'");
-        assert(token.type === TokenType.RAW_STRING);
-        expect(token.value).toBe("a'b'c");
+        expect(tokenize("'a\\'b\\'c'")).toMatchObject({
+          type: TokenType.RAW_STRING,
+          value: "a'b'c",
+        });
       });
 
       test("tokenizes empty raw string", () => {
-        const token = tokenize("''");
-        assert(token.type === TokenType.RAW_STRING);
-        expect(token.value).toBe("");
+        expect(tokenize("''")).toMatchObject({
+          type: TokenType.RAW_STRING,
+          value: "",
+        });
       });
 
       test("throws on unterminated raw string", () => {
@@ -169,88 +177,102 @@ describe("Lexer", () => {
 
     describe("quoted strings", () => {
       test("tokenizes basic quoted string", () => {
-        const token = tokenize('"hello"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.text).toBe('"hello"');
-        expect(token.value).toBe("hello");
+        expect(tokenize('"hello"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          text: '"hello"',
+          value: "hello",
+        });
       });
 
       test("tokenizes empty quoted string", () => {
-        const token = tokenize('""');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("");
+        expect(tokenize('""')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "",
+        });
       });
 
       test("handles escaped double quote", () => {
-        const token = tokenize('"say \\"hi\\""');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe('say "hi"');
+        expect(tokenize('"say \\"hi\\""')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: 'say "hi"',
+        });
       });
 
       test("handles escaped backslash", () => {
-        const token = tokenize('"path\\\\to\\\\file"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("path\\to\\file");
+        expect(tokenize('"path\\\\to\\\\file"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "path\\to\\file",
+        });
       });
 
       test("handles escaped forward slash", () => {
-        const token = tokenize('"a\\/b"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("a/b");
+        expect(tokenize('"a\\/b"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "a/b",
+        });
       });
 
       test("handles escaped backspace", () => {
-        const token = tokenize('"a\\bb"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("a\bb");
+        expect(tokenize('"a\\bb"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "a\bb",
+        });
       });
 
       test("handles escaped form feed", () => {
-        const token = tokenize('"a\\fb"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("a\fb");
+        expect(tokenize('"a\\fb"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "a\fb",
+        });
       });
 
       test("handles escaped newline", () => {
-        const token = tokenize('"line1\\nline2"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("line1\nline2");
+        expect(tokenize('"line1\\nline2"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "line1\nline2",
+        });
       });
 
       test("handles escaped carriage return", () => {
-        const token = tokenize('"line1\\rline2"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("line1\rline2");
+        expect(tokenize('"line1\\rline2"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "line1\rline2",
+        });
       });
 
       test("handles escaped tab", () => {
-        const token = tokenize('"col1\\tcol2"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("col1\tcol2");
+        expect(tokenize('"col1\\tcol2"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "col1\tcol2",
+        });
       });
 
       test("handles escaped backtick", () => {
-        const token = tokenize('"code: \\`x\\`"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("code: `x`");
+        expect(tokenize('"code: \\`x\\`"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "code: `x`",
+        });
       });
 
       test("handles unicode escape", () => {
-        const token = tokenize('"\\u0041\\u0042\\u0043"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("ABC");
+        expect(tokenize('"\\u0041\\u0042\\u0043"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "ABC",
+        });
       });
 
       test("handles unicode escape with lowercase hex", () => {
-        const token = tokenize('"\\u00e9"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("é");
+        expect(tokenize('"\\u00e9"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "é",
+        });
       });
 
       test("handles mixed escapes", () => {
-        const token = tokenize('"a\\nb\\tc\\u0044"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("a\nb\tc\u0044");
+        expect(tokenize('"a\\nb\\tc\\u0044"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "a\nb\tc\u0044",
+        });
       });
 
       test("throws on invalid unicode escape - too short", () => {
@@ -266,15 +288,17 @@ describe("Lexer", () => {
       });
 
       test("preserves unknown escape sequences", () => {
-        const token = tokenize('"\\x\\y\\z"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("\\x\\y\\z");
+        expect(tokenize('"\\x\\y\\z"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "\\x\\y\\z",
+        });
       });
 
       test("handles trailing backslash in content", () => {
-        const token = tokenize('"abc\\\\"');
-        assert(token.type === TokenType.QUOTED_STRING);
-        expect(token.value).toBe("abc\\");
+        expect(tokenize('"abc\\\\"')).toMatchObject({
+          type: TokenType.QUOTED_STRING,
+          value: "abc\\",
+        });
       });
 
       test("throws on unescaped backtick", () => {
@@ -292,28 +316,32 @@ describe("Lexer", () => {
 
     describe("backtick literals", () => {
       test("tokenizes basic backtick literal", () => {
-        const token = tokenize("`123`");
-        assert(token.type === TokenType.BACKTICK_LITERAL);
-        expect(token.text).toBe("`123`");
-        expect(token.value).toBe("123");
+        expect(tokenize("`123`")).toMatchObject({
+          type: TokenType.BACKTICK_LITERAL,
+          text: "`123`",
+          value: "123",
+        });
       });
 
       test("tokenizes backtick literal with JSON content", () => {
-        const token = tokenize('`{"a":1}`');
-        assert(token.type === TokenType.BACKTICK_LITERAL);
-        expect(token.value).toBe('{"a":1}');
+        expect(tokenize('`{"a":1}`')).toMatchObject({
+          type: TokenType.BACKTICK_LITERAL,
+          value: '{"a":1}',
+        });
       });
 
       test("tokenizes empty backtick literal", () => {
-        const token = tokenize("``");
-        assert(token.type === TokenType.BACKTICK_LITERAL);
-        expect(token.value).toBe("");
+        expect(tokenize("``")).toMatchObject({
+          type: TokenType.BACKTICK_LITERAL,
+          value: "",
+        });
       });
 
       test("handles escaped backtick", () => {
-        const token = tokenize("`code: \\`x\\``");
-        assert(token.type === TokenType.BACKTICK_LITERAL);
-        expect(token.value).toBe("code: `x`");
+        expect(tokenize("`code: \\`x\\``")).toMatchObject({
+          type: TokenType.BACKTICK_LITERAL,
+          value: "code: `x`",
+        });
       });
 
       test("throws on unterminated backtick literal", () => {
@@ -326,81 +354,91 @@ describe("Lexer", () => {
 
   describe("numbers", () => {
     test("tokenizes positive integer", () => {
-      const token = tokenize("42");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.text).toBe("42");
-      expect(token.value).toBe(42);
+      expect(tokenize("42")).toMatchObject({
+        type: TokenType.NUMBER,
+        text: "42",
+        value: 42,
+      });
     });
 
     test("tokenizes zero", () => {
-      const token = tokenize("0");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.value).toBe(0);
+      expect(tokenize("0")).toMatchObject({
+        type: TokenType.NUMBER,
+        value: 0,
+      });
     });
 
     test("tokenizes negative integer", () => {
-      const token = tokenize("-42");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.text).toBe("-42");
-      expect(token.value).toBe(-42);
+      expect(tokenize("-42")).toMatchObject({
+        type: TokenType.NUMBER,
+        text: "-42",
+        value: -42,
+      });
     });
 
     test("tokenizes decimal number", () => {
-      const token = tokenize("3.14");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.text).toBe("3.14");
-      expect(token.value).toBe(3.14);
+      expect(tokenize("3.14")).toMatchObject({
+        type: TokenType.NUMBER,
+        text: "3.14",
+        value: 3.14,
+      });
     });
 
     test("tokenizes negative decimal", () => {
-      const token = tokenize("-3.14");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.value).toBe(-3.14);
+      expect(tokenize("-3.14")).toMatchObject({
+        type: TokenType.NUMBER,
+        value: -3.14,
+      });
     });
 
     test("tokenizes number with lowercase exponent", () => {
-      const token = tokenize("1e10");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.value).toBe(1e10);
+      expect(tokenize("1e10")).toMatchObject({
+        type: TokenType.NUMBER,
+        value: 1e10,
+      });
     });
 
     test("tokenizes number with uppercase exponent", () => {
-      const token = tokenize("1E10");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.value).toBe(1e10);
+      expect(tokenize("1E10")).toMatchObject({
+        type: TokenType.NUMBER,
+        value: 1e10,
+      });
     });
 
     test("tokenizes number with positive exponent", () => {
-      const token = tokenize("1e+10");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.value).toBe(1e10);
+      expect(tokenize("1e+10")).toMatchObject({
+        type: TokenType.NUMBER,
+        value: 1e10,
+      });
     });
 
     test("tokenizes number with negative exponent", () => {
-      const token = tokenize("1e-10");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.value).toBe(1e-10);
+      expect(tokenize("1e-10")).toMatchObject({
+        type: TokenType.NUMBER,
+        value: 1e-10,
+      });
     });
 
     test("tokenizes decimal with exponent", () => {
-      const token = tokenize("3.14e2");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.value).toBe(314);
+      expect(tokenize("3.14e2")).toMatchObject({
+        type: TokenType.NUMBER,
+        value: 314,
+      });
     });
 
     test("tokenizes complex number", () => {
-      const token = tokenize("-123.456e-7");
-      assert(token.type === TokenType.NUMBER);
-      expect(token.value).toBe(-123.456e-7);
+      expect(tokenize("-123.456e-7")).toMatchObject({
+        type: TokenType.NUMBER,
+        value: -123.456e-7,
+      });
     });
 
     test("stops at dot without following digit", () => {
-      const toks = tokens("1.foo");
-      expect(toks).toHaveLength(3);
-      assert(toks[0].type === TokenType.NUMBER);
-      expect(toks[0].value).toBe(1);
-      expect(toks[1].type).toBe(TokenType.DOT);
-      expect(toks[2].type).toBe(TokenType.IDENTIFIER);
+      expect(tokens("1.foo")).toMatchObject([
+        { type: TokenType.NUMBER, value: 1 },
+        { type: TokenType.DOT },
+        { type: TokenType.IDENTIFIER },
+      ]);
     });
 
     test("throws on invalid digit after negative sign", () => {
@@ -432,67 +470,77 @@ describe("Lexer", () => {
 
   describe("identifiers and keywords", () => {
     test("tokenizes basic identifier", () => {
-      const token = tokenize("foo");
-      assert(token.type === TokenType.IDENTIFIER);
-      expect(token.text).toBe("foo");
-      expect(token.value).toBe("foo");
+      expect(tokenize("foo")).toMatchObject({
+        type: TokenType.IDENTIFIER,
+        text: "foo",
+        value: "foo",
+      });
     });
 
     test("tokenizes identifier with underscore", () => {
-      const token = tokenize("foo_bar");
-      assert(token.type === TokenType.IDENTIFIER);
-      expect(token.value).toBe("foo_bar");
+      expect(tokenize("foo_bar")).toMatchObject({
+        type: TokenType.IDENTIFIER,
+        value: "foo_bar",
+      });
     });
 
     test("tokenizes identifier starting with underscore", () => {
-      const token = tokenize("_private");
-      assert(token.type === TokenType.IDENTIFIER);
-      expect(token.value).toBe("_private");
+      expect(tokenize("_private")).toMatchObject({
+        type: TokenType.IDENTIFIER,
+        value: "_private",
+      });
     });
 
     test("tokenizes identifier with numbers", () => {
-      const token = tokenize("foo123");
-      assert(token.type === TokenType.IDENTIFIER);
-      expect(token.value).toBe("foo123");
+      expect(tokenize("foo123")).toMatchObject({
+        type: TokenType.IDENTIFIER,
+        value: "foo123",
+      });
     });
 
     test("tokenizes uppercase identifier", () => {
-      const token = tokenize("FOO");
-      assert(token.type === TokenType.IDENTIFIER);
-      expect(token.value).toBe("FOO");
+      expect(tokenize("FOO")).toMatchObject({
+        type: TokenType.IDENTIFIER,
+        value: "FOO",
+      });
     });
 
     test("tokenizes mixed case identifier", () => {
-      const token = tokenize("FooBar");
-      assert(token.type === TokenType.IDENTIFIER);
-      expect(token.value).toBe("FooBar");
+      expect(tokenize("FooBar")).toMatchObject({
+        type: TokenType.IDENTIFIER,
+        value: "FooBar",
+      });
     });
 
     test("tokenizes null keyword", () => {
-      const token = tokenize("null");
-      assert(token.type === TokenType.NULL);
-      expect(token.text).toBe("null");
-      expect(token.value).toBeNull();
+      expect(tokenize("null")).toMatchObject({
+        type: TokenType.NULL,
+        text: "null",
+        value: null,
+      });
     });
 
     test("tokenizes true keyword", () => {
-      const token = tokenize("true");
-      assert(token.type === TokenType.TRUE);
-      expect(token.text).toBe("true");
-      expect(token.value).toBe(true);
+      expect(tokenize("true")).toMatchObject({
+        type: TokenType.TRUE,
+        text: "true",
+        value: true,
+      });
     });
 
     test("tokenizes false keyword", () => {
-      const token = tokenize("false");
-      assert(token.type === TokenType.FALSE);
-      expect(token.text).toBe("false");
-      expect(token.value).toBe(false);
+      expect(tokenize("false")).toMatchObject({
+        type: TokenType.FALSE,
+        text: "false",
+        value: false,
+      });
     });
 
     test("does not match keyword prefix", () => {
-      const token = tokenize("nullable");
-      assert(token.type === TokenType.IDENTIFIER);
-      expect(token.value).toBe("nullable");
+      expect(tokenize("nullable")).toMatchObject({
+        type: TokenType.IDENTIFIER,
+        value: "nullable",
+      });
     });
 
     test("does not match keyword suffix", () => {
@@ -503,46 +551,41 @@ describe("Lexer", () => {
 
   describe("whitespace", () => {
     test("skips leading spaces", () => {
-      const toks = tokens("   foo");
-      expect(toks).toHaveLength(1);
-      expect(toks[0].type).toBe(TokenType.IDENTIFIER);
-      expect(toks[0].offset).toBe(3);
+      expect(tokens("   foo")).toMatchObject([
+        { type: TokenType.IDENTIFIER, offset: 3 },
+      ]);
     });
 
     test("skips leading tabs", () => {
-      const toks = tokens("\t\tfoo");
-      expect(toks).toHaveLength(1);
-      expect(toks[0].type).toBe(TokenType.IDENTIFIER);
-      expect(toks[0].offset).toBe(2);
+      expect(tokens("\t\tfoo")).toMatchObject([
+        { type: TokenType.IDENTIFIER, offset: 2 },
+      ]);
     });
 
     test("skips leading newlines", () => {
-      const toks = tokens("\nfoo");
-      expect(toks).toHaveLength(1);
-      expect(toks[0].type).toBe(TokenType.IDENTIFIER);
-      expect(toks[0].offset).toBe(1);
+      expect(tokens("\nfoo")).toMatchObject([
+        { type: TokenType.IDENTIFIER, offset: 1 },
+      ]);
     });
 
     test("skips leading carriage returns", () => {
-      const toks = tokens("\r\nfoo");
-      expect(toks).toHaveLength(1);
-      expect(toks[0].type).toBe(TokenType.IDENTIFIER);
-      expect(toks[0].offset).toBe(2);
+      expect(tokens("\r\nfoo")).toMatchObject([
+        { type: TokenType.IDENTIFIER, offset: 2 },
+      ]);
     });
 
     test("skips leading mixed whitespace", () => {
-      const toks = tokens(" \t\n\r foo");
-      expect(toks).toHaveLength(1);
-      expect(toks[0].type).toBe(TokenType.IDENTIFIER);
-      expect(toks[0].offset).toBe(5);
+      expect(tokens(" \t\n\r foo")).toMatchObject([
+        { type: TokenType.IDENTIFIER, offset: 5 },
+      ]);
     });
 
     test("handles whitespace between tokens", () => {
-      const toks = tokens("foo . bar");
-      expect(toks).toHaveLength(3);
-      expect(toks[0].type).toBe(TokenType.IDENTIFIER);
-      expect(toks[1].type).toBe(TokenType.DOT);
-      expect(toks[2].type).toBe(TokenType.IDENTIFIER);
+      expect(tokens("foo . bar")).toMatchObject([
+        { type: TokenType.IDENTIFIER },
+        { type: TokenType.DOT },
+        { type: TokenType.IDENTIFIER },
+      ]);
     });
   });
 
@@ -561,10 +604,11 @@ describe("Lexer", () => {
 
     test("parses single ampersand as AMPERSAND token", () => {
       // Single ampersand is now valid for expression references (&expr)
-      const result = tokenize("&");
-      expect(result.type).toBe(TokenType.AMPERSAND);
-      expect(result.text).toBe("&");
-      expect(result.offset).toBe(0);
+      expect(tokenize("&")).toMatchObject({
+        type: TokenType.AMPERSAND,
+        text: "&",
+        offset: 0,
+      });
     });
 
     test("reports correct position for error", () => {
@@ -603,9 +647,10 @@ describe("Lexer", () => {
     describe("consume", () => {
       test("consumes matching token", () => {
         const lexer = new Lexer("foo");
-        const token = lexer.consume(TokenType.IDENTIFIER);
-        expect(token.type).toBe(TokenType.IDENTIFIER);
-        expect(token.text).toBe("foo");
+        expect(lexer.consume(TokenType.IDENTIFIER)).toMatchObject({
+          type: TokenType.IDENTIFIER,
+          text: "foo",
+        });
         expect(lexer.peek().type).toBe(TokenType.EOF);
       });
 
@@ -620,9 +665,9 @@ describe("Lexer", () => {
     describe("tryConsume", () => {
       test("consumes and returns matching token", () => {
         const lexer = new Lexer("foo");
-        const token = lexer.tryConsume(TokenType.IDENTIFIER);
-        assert(token !== null);
-        expect(token.text).toBe("foo");
+        expect(lexer.tryConsume(TokenType.IDENTIFIER)).toMatchObject({
+          text: "foo",
+        });
         expect(lexer.peek().type).toBe(TokenType.EOF);
       });
 
@@ -637,16 +682,19 @@ describe("Lexer", () => {
 
   describe("EOF handling", () => {
     test("returns EOF for empty input", () => {
-      const token = tokenize("");
-      expect(token.type).toBe(TokenType.EOF);
-      expect(token.text).toBe("");
+      expect(tokenize("")).toMatchObject({
+        type: TokenType.EOF,
+        text: "",
+      });
     });
 
     test("EOF has correct offset", () => {
       const lexer = new Lexer("foo");
       lexer.advance();
-      expect(lexer.peek().type).toBe(TokenType.EOF);
-      expect(lexer.peek().offset).toBe(3);
+      expect(lexer.peek()).toMatchObject({
+        type: TokenType.EOF,
+        offset: 3,
+      });
     });
   });
 

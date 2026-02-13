@@ -22,8 +22,7 @@ describe("makeJsonSelectorAccessor", () => {
       const obj = { foo: "bar" };
       const acc = accessWithJsonSelector(parseJsonSelector("foo"), obj);
 
-      expect(acc.valid).toBe(true);
-      expect(acc.path).toBe("foo");
+      expect(acc).toMatchObject({ valid: true, path: "foo" });
       expect(acc.get()).toBe("bar");
 
       acc.set("baz");
@@ -38,9 +37,11 @@ describe("makeJsonSelectorAccessor", () => {
       const unbound = makeJsonSelectorAccessor(parseJsonSelector("x"));
       const bound = bindJsonSelectorAccessor(unbound, obj);
 
-      expect(bound.selector).toEqual({ type: "identifier", id: "x" });
-      expect(bound.valid).toBe(true);
-      expect(bound.path).toBe("x");
+      expect(bound).toMatchObject({
+        selector: { type: "identifier", id: "x" },
+        valid: true,
+        path: "x",
+      });
       expect(bound.get()).toBe(1);
 
       bound.set(2);
