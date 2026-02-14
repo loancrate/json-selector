@@ -181,6 +181,46 @@ describe("evaluate", () => {
     const selector = parseJsonSelector("s[1:3]");
     expect(evaluateJsonSelector(selector, { s: 123 })).toBeNull();
   });
+
+  describe("ternary operator", () => {
+    test.each<[string, unknown, unknown]>([
+      ["null is falsy", null, "fallback"],
+      ["false is falsy", false, "fallback"],
+      ["empty string is falsy", "", "fallback"],
+      ["empty array is falsy", [], "fallback"],
+      ["empty object is falsy", {}, "fallback"],
+      ["zero is truthy", 0, "selected"],
+      ["non-empty string is truthy", "x", "selected"],
+      ["non-empty array is truthy", [1], "selected"],
+      ["non-empty object is truthy", { a: 1 }, "selected"],
+    ])("%s", (_name, value, expected) => {
+      const selector = parseJsonSelector("value ? selected : fallback");
+      const context = { value, selected: "selected", fallback: "fallback" };
+      expect(evaluateJsonSelector(selector, context)).toBe(expected);
+    });
+
+    test("nested ternary evaluates right-associative alternate branch", () => {
+      const selector = parseJsonSelector("a ? b : c ? d : e");
+      expect(
+        evaluateJsonSelector(selector, {
+          a: false,
+          b: "b",
+          c: true,
+          d: "d",
+          e: "e",
+        }),
+      ).toBe("d");
+      expect(
+        evaluateJsonSelector(selector, {
+          a: false,
+          b: "b",
+          c: false,
+          d: "d",
+          e: "e",
+        }),
+      ).toBe("e");
+    });
+  });
 });
 
 describe("project", () => {

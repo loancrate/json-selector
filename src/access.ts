@@ -501,6 +501,24 @@ function makeAccessorInternal(
         };
         return new Accessor();
       },
+      ternary(selector) {
+        const { condition, consequent, alternate } = selector;
+        const ca = makeAccessorInternal(condition, options);
+        const ta = makeAccessorInternal(consequent, options);
+        const aa = makeAccessorInternal(alternate, options);
+        const Accessor = class extends ReadOnlyAccessor {
+          constructor() {
+            super(selector);
+          }
+          get(context: unknown, rootContext = context) {
+            const cv = ca.get(context, rootContext);
+            return isFalseOrEmpty(cv)
+              ? aa.get(context, rootContext)
+              : ta.get(context, rootContext);
+          }
+        };
+        return new Accessor();
+      },
       pipe(selector) {
         const { lhs, rhs } = selector;
         const la = makeAccessorInternal(lhs, options);

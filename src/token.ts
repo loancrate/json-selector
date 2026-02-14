@@ -30,7 +30,7 @@ export const enum TokenType {
   AT,
   DOLLAR,
   STAR,
-  QUESTION, // Reserved for future use (ternary operator)
+  QUESTION, // Ternary operator
   AMPERSAND,
   FILTER_BRACKET,
   FLATTEN_BRACKET,

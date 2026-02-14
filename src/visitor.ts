@@ -21,6 +21,7 @@ import {
   JsonSelectorProject,
   JsonSelectorRoot,
   JsonSelectorSlice,
+  JsonSelectorTernary,
 } from "./ast";
 
 export interface Visitor<R, C> {
@@ -39,6 +40,7 @@ export interface Visitor<R, C> {
   compare(node: JsonSelectorCompare, context: C): R;
   and(node: JsonSelectorAnd, context: C): R;
   or(node: JsonSelectorOr, context: C): R;
+  ternary(node: JsonSelectorTernary, context: C): R;
   pipe(node: JsonSelectorPipe, context: C): R;
   functionCall(node: JsonSelectorFunctionCall, context: C): R;
   expressionRef(node: JsonSelectorExpressionRef, context: C): R;
@@ -83,6 +85,8 @@ export function visitJsonSelector<R, C>(
       return visitor.and(selector, context);
     case "or":
       return visitor.or(selector, context);
+    case "ternary":
+      return visitor.ternary(selector, context);
     case "pipe":
       return visitor.pipe(selector, context);
     case "functionCall":

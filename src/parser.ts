@@ -13,6 +13,7 @@ const ROOT_NODE: Readonly<JsonSelectorRoot> = Object.freeze({
 
 // Binding power constants (higher = tighter binding)
 const BP_PIPE = 1;
+const BP_TERNARY = 2;
 const BP_OR = 3;
 const BP_AND = 4;
 const BP_COMPARE = 7;
@@ -23,7 +24,7 @@ const BP_NOT = 45;
 const BP_BRACKET = 55;
 
 // Projection stop threshold: operators below this terminate projections
-// Separates terminators (pipe, or, and, comparisons) from continuators (dot, brackets)
+// Separates terminators (pipe, ternary, or, and, comparisons) from continuators (dot, brackets)
 const PROJECTION_STOP_BP = 10;
 
 // Binding power table (higher = tighter binding)
@@ -36,6 +37,7 @@ const TOKEN_BP: number[] = (() => {
 
   // Binary operators (low to high)
   bp[TokenType.PIPE] = BP_PIPE; // |
+  bp[TokenType.QUESTION] = BP_TERNARY; // ?:
   bp[TokenType.OR] = BP_OR; // ||
   bp[TokenType.AND] = BP_AND; // &&
 
@@ -324,6 +326,31 @@ export class Parser {
           rhs: this.expression(BP_OR),
         };
 
+      case TokenType.QUESTION: {
+        this.lexer.advance();
+        const consequent = this.expression(0);
+        this.lexer.consume(TokenType.COLON);
+        return {
+          type: "ternary",
+          condition: left,
+          consequent,
+          // NOTE: This differs from jmespath-community/typescript-jmespath, which
+          // parses the false branch with expression(0).
+          //
+          // We intentionally parse with BP_TERNARY - 1 so the current ternary keeps
+          // ownership of lower-precedence operators like pipe. This yields:
+          //   a ? b : c | d  =>  (a ? b : c) | d
+          //
+          // This follows JEP-21 exactly:
+          // - "higher precedence than the `|` pipe expression and lower precedence
+          //   than the `||` and `&&` logical expressions"
+          // - "Expressions within a ternary conditional expression are evaluated
+          //   using a right-associative reading."
+          // Spec: https://github.com/jmespath-community/jmespath.spec/blob/main/jep-0021-ternary-conditionals.md
+          alternate: this.expression(BP_TERNARY - 1),
+        };
+      }
+
       case TokenType.EQ:
         this.lexer.advance();
         return {
@@ -558,7 +585,7 @@ export class Parser {
    * 2. Terminate the projection
    *
    * Uses PROJECTION_STOP_THRESHOLD to distinguish:
-   * - Below threshold: terminators (pipe, or, and, comparisons, EOF, closing brackets)
+   * - Below threshold: terminators (pipe, ternary, or, and, comparisons, EOF, closing brackets)
    * - At/above threshold: continuation operators (flatten, filter, star, dot, bracket access)
    *
    * This allows proper precedence: `foo[] | bar` pipes the projection result,

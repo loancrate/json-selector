@@ -392,6 +392,50 @@ describe("makeJsonSelectorAccessor", () => {
     });
   });
 
+  describe("ternary (?:)", () => {
+    test("returns consequent when condition is truthy", () => {
+      const acc = accessor("cond ? yes : no");
+      expect(acc.get({ cond: 1, yes: "selected", no: "fallback" })).toBe(
+        "selected",
+      );
+    });
+
+    test("returns alternate when condition is falsy by JMESPath rules", () => {
+      const acc = accessor("cond ? yes : no");
+      expect(acc.get({ cond: [], yes: "selected", no: "fallback" })).toBe(
+        "fallback",
+      );
+    });
+
+    test("set is no-op", () => {
+      const acc = accessor("cond ? yes : no");
+      const obj = { cond: true, yes: "selected", no: "fallback" };
+      acc.set("changed", obj);
+      expect(obj).toStrictEqual({
+        cond: true,
+        yes: "selected",
+        no: "fallback",
+      });
+    });
+
+    test("delete is no-op", () => {
+      const acc = accessor("cond ? yes : no");
+      const obj = { cond: false, yes: "selected", no: "fallback" };
+      acc.delete(obj);
+      expect(obj).toStrictEqual({
+        cond: false,
+        yes: "selected",
+        no: "fallback",
+      });
+    });
+
+    test("isValidContext always returns true", () => {
+      const acc = accessor("cond ? yes : no");
+      expect(acc.isValidContext(null)).toBe(true);
+      expect(acc.isValidContext({})).toBe(true);
+    });
+  });
+
   // ============================================================
   // Mutable accessors
   // ============================================================

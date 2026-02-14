@@ -772,6 +772,61 @@ describe("parseJsonSelector", () => {
     });
   });
 
+  describe("ternary operator", () => {
+    test("simple ternary", () => {
+      expect(parseJsonSelector("a ? b : c")).toStrictEqual<JsonSelector>({
+        type: "ternary",
+        condition: { type: "identifier", id: "a" },
+        consequent: { type: "identifier", id: "b" },
+        alternate: { type: "identifier", id: "c" },
+      });
+    });
+
+    test("ternary is right-associative", () => {
+      expect(
+        parseJsonSelector("a ? b : c ? d : e"),
+      ).toStrictEqual<JsonSelector>({
+        type: "ternary",
+        condition: { type: "identifier", id: "a" },
+        consequent: { type: "identifier", id: "b" },
+        alternate: {
+          type: "ternary",
+          condition: { type: "identifier", id: "c" },
+          consequent: { type: "identifier", id: "d" },
+          alternate: { type: "identifier", id: "e" },
+        },
+      });
+    });
+
+    test("|| binds tighter than ternary", () => {
+      // a || b ? c : d → (a || b) ? c : d
+      expect(parseJsonSelector("a || b ? c : d")).toStrictEqual<JsonSelector>({
+        type: "ternary",
+        condition: {
+          type: "or",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        consequent: { type: "identifier", id: "c" },
+        alternate: { type: "identifier", id: "d" },
+      });
+    });
+
+    test("ternary binds tighter than pipe", () => {
+      // a ? b : c | d → (a ? b : c) | d
+      expect(parseJsonSelector("a ? b : c | d")).toStrictEqual<JsonSelector>({
+        type: "pipe",
+        lhs: {
+          type: "ternary",
+          condition: { type: "identifier", id: "a" },
+          consequent: { type: "identifier", id: "b" },
+          alternate: { type: "identifier", id: "c" },
+        },
+        rhs: { type: "identifier", id: "d" },
+      });
+    });
+  });
+
   describe("slice expressions", () => {
     test("slice with start and end", () => {
       expect(parseJsonSelector("foo[1:3]")).toStrictEqual<JsonSelector>({

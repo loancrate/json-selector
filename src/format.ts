@@ -8,8 +8,9 @@ const PRECEDENCE_NOT = 2;
 const PRECEDENCE_COMPARE = 3;
 const PRECEDENCE_AND = 4;
 const PRECEDENCE_OR = 5;
-const PRECEDENCE_PIPE = 6;
-const PRECEDENCE_MAX = 7;
+const PRECEDENCE_TERNARY = 6;
+const PRECEDENCE_PIPE = 7;
+const PRECEDENCE_MAX = 8;
 
 const operatorPrecedence: { [type in JsonSelectorNodeType]?: number } = {
   fieldAccess: PRECEDENCE_ACCESS,
@@ -27,6 +28,7 @@ const operatorPrecedence: { [type in JsonSelectorNodeType]?: number } = {
   compare: PRECEDENCE_COMPARE,
   and: PRECEDENCE_AND,
   or: PRECEDENCE_OR,
+  ternary: PRECEDENCE_TERNARY,
   pipe: PRECEDENCE_PIPE,
 };
 
@@ -153,6 +155,12 @@ function format(selector: JsonSelector): string {
         const lv = formatSubexpression(lhs, PRECEDENCE_OR);
         const rv = formatSubexpression(rhs, PRECEDENCE_OR - 1);
         return `${lv} || ${rv}`;
+      },
+      ternary({ condition, consequent, alternate }) {
+        const cv = formatSubexpression(condition, PRECEDENCE_TERNARY - 1);
+        const tv = format(consequent);
+        const av = formatSubexpression(alternate, PRECEDENCE_TERNARY);
+        return `${cv} ? ${tv} : ${av}`;
       },
       pipe({ lhs, rhs, dotSyntax }) {
         const lv = formatSubexpression(lhs, PRECEDENCE_PIPE);
