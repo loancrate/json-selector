@@ -703,13 +703,7 @@ describe("parseJsonSelector", () => {
   });
 
   describe("arithmetic operators", () => {
-    test.each<
-      [
-        string,
-        string,
-        JsonSelector,
-      ]
-    >([
+    test.each<[string, string, JsonSelector]>([
       [
         "addition",
         "a + b",

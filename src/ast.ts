@@ -104,13 +104,7 @@ export interface JsonSelectorCompare {
 }
 
 /** The set of arithmetic operators supported in binary arithmetic expressions. */
-export type JsonSelectorArithmeticOperator =
-  | "+"
-  | "-"
-  | "*"
-  | "/"
-  | "%"
-  | "//";
+export type JsonSelectorArithmeticOperator = "+" | "-" | "*" | "/" | "%" | "//";
 
 /** Binary arithmetic operation, e.g. `a + b`, `price * quantity`, `x // 2`. */
 export interface JsonSelectorArithmetic {
