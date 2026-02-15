@@ -1,4 +1,8 @@
-import { evaluateJsonSelector, project } from "../src/evaluate";
+import {
+  evaluateJsonSelector,
+  NotANumberError,
+  project,
+} from "../src/evaluate";
 import { getBuiltinFunctionProvider } from "../src/functions/builtins";
 import { parseJsonSelector } from "../src/parse";
 
@@ -180,6 +184,113 @@ describe("evaluate", () => {
   test("slice returns null for non-array/non-string values", () => {
     const selector = parseJsonSelector("s[1:3]");
     expect(evaluateJsonSelector(selector, { s: 123 })).toBeNull();
+  });
+
+  describe("arithmetic expressions", () => {
+    const arithmeticContext = {
+      a: 6,
+      b: 3,
+      c: 2,
+      neg: -7,
+      items: [
+        { price: 25, quantity: 3 },
+        { price: 25, quantity: 5 },
+        { price: 11, quantity: 8 },
+      ],
+    };
+
+    test.each<{
+      expression: string;
+      result: unknown;
+    }>([
+      { expression: "a + b", result: 9 },
+      { expression: "a - b", result: 3 },
+      { expression: "a * b", result: 18 },
+      { expression: "a / b", result: 2 },
+      { expression: "a % c", result: 0 },
+      { expression: "a // c", result: 3 },
+      { expression: "neg // c", result: -4 },
+      { expression: "+a", result: 6 },
+      { expression: "-b", result: -3 },
+      { expression: "a + b * c", result: 12 },
+      { expression: "(a + b) * c", result: 18 },
+      {
+        expression: "items[?price * quantity > `100`].price",
+        result: [25],
+      },
+      { expression: "a × b", result: 18 },
+      { expression: "a ÷ b", result: 2 },
+      { expression: "a − b", result: 3 },
+    ])("evaluates arithmetic case: $expression", ({ expression, result }) => {
+      expect(
+        evaluateJsonSelector(parseJsonSelector(expression), arithmeticContext),
+      ).toStrictEqual(result);
+    });
+
+    const arithmeticErrorContext = {
+      a: 1,
+      b: 0,
+      s: "x",
+      n: null,
+    };
+
+    test.each(["a / b", "a // b", "a + s", "+s", "-n"])(
+      "throws NotANumberError: %s",
+      (expression) => {
+        expect(() =>
+          evaluateJsonSelector(
+            parseJsonSelector(expression),
+            arithmeticErrorContext,
+          ),
+        ).toThrow(NotANumberError);
+      },
+    );
+
+    test("includes operand type for non-number input", () => {
+      expect(() =>
+        evaluateJsonSelector(
+          parseJsonSelector("a + s"),
+          arithmeticErrorContext,
+        ),
+      ).toThrow("right operand of '+'");
+      expect(() =>
+        evaluateJsonSelector(
+          parseJsonSelector("a + s"),
+          arithmeticErrorContext,
+        ),
+      ).toThrow("got string");
+    });
+
+    test("describes array type in arithmetic error", () => {
+      expect(() =>
+        evaluateJsonSelector(parseJsonSelector("a + b"), { a: 1, b: [2, 3] }),
+      ).toThrow("got array");
+    });
+
+    test("includes division-by-zero context", () => {
+      expect(() =>
+        evaluateJsonSelector(
+          parseJsonSelector("a / b"),
+          arithmeticErrorContext,
+        ),
+      ).toThrow("division by zero for '/'");
+      expect(() =>
+        evaluateJsonSelector(
+          parseJsonSelector("a // b"),
+          arithmeticErrorContext,
+        ),
+      ).toThrow("division by zero for '//'");
+    });
+
+    test("modulo by zero produces NaN", () => {
+      const result = evaluateJsonSelector(parseJsonSelector("`1` % `0`"), {});
+      expect(result).toBeNaN();
+    });
+
+    test("supports arithmetic in pipes", () => {
+      const selector = parseJsonSelector("a | @ + $.b");
+      expect(evaluateJsonSelector(selector, { a: 2, b: 3 })).toBe(5);
+    });
   });
 
   describe("ternary operator", () => {

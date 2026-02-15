@@ -1,6 +1,7 @@
 import {
   JsonSelector,
   JsonSelectorAnd,
+  JsonSelectorArithmetic,
   JsonSelectorCompare,
   JsonSelectorCurrent,
   JsonSelectorExpressionRef,
@@ -22,6 +23,7 @@ import {
   JsonSelectorRoot,
   JsonSelectorSlice,
   JsonSelectorTernary,
+  JsonSelectorUnaryArithmetic,
 } from "./ast";
 
 export interface Visitor<R, C> {
@@ -38,6 +40,8 @@ export interface Visitor<R, C> {
   flatten(node: JsonSelectorFlatten, context: C): R;
   not(node: JsonSelectorNot, context: C): R;
   compare(node: JsonSelectorCompare, context: C): R;
+  arithmetic(node: JsonSelectorArithmetic, context: C): R;
+  unaryArithmetic(node: JsonSelectorUnaryArithmetic, context: C): R;
   and(node: JsonSelectorAnd, context: C): R;
   or(node: JsonSelectorOr, context: C): R;
   ternary(node: JsonSelectorTernary, context: C): R;
@@ -81,6 +85,10 @@ export function visitJsonSelector<R, C>(
       return visitor.not(selector, context);
     case "compare":
       return visitor.compare(selector, context);
+    case "arithmetic":
+      return visitor.arithmetic(selector, context);
+    case "unaryArithmetic":
+      return visitor.unaryArithmetic(selector, context);
     case "and":
       return visitor.and(selector, context);
     case "or":

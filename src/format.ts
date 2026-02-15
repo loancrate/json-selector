@@ -5,12 +5,14 @@ import { visitJsonSelector } from "./visitor";
 
 const PRECEDENCE_ACCESS = 1;
 const PRECEDENCE_NOT = 2;
-const PRECEDENCE_COMPARE = 3;
-const PRECEDENCE_AND = 4;
-const PRECEDENCE_OR = 5;
-const PRECEDENCE_TERNARY = 6;
-const PRECEDENCE_PIPE = 7;
-const PRECEDENCE_MAX = 8;
+const PRECEDENCE_MULTIPLY = 3;
+const PRECEDENCE_ADD = 4;
+const PRECEDENCE_COMPARE = 5;
+const PRECEDENCE_AND = 6;
+const PRECEDENCE_OR = 7;
+const PRECEDENCE_TERNARY = 8;
+const PRECEDENCE_PIPE = 9;
+const PRECEDENCE_MAX = 10;
 
 const operatorPrecedence: { [type in JsonSelectorNodeType]?: number } = {
   fieldAccess: PRECEDENCE_ACCESS,
@@ -25,6 +27,7 @@ const operatorPrecedence: { [type in JsonSelectorNodeType]?: number } = {
   multiSelectHash: PRECEDENCE_ACCESS,
   objectProject: PRECEDENCE_ACCESS,
   not: PRECEDENCE_NOT,
+  unaryArithmetic: PRECEDENCE_NOT,
   compare: PRECEDENCE_COMPARE,
   and: PRECEDENCE_AND,
   or: PRECEDENCE_OR,
@@ -32,9 +35,22 @@ const operatorPrecedence: { [type in JsonSelectorNodeType]?: number } = {
   pipe: PRECEDENCE_PIPE,
 };
 
+function getArithmeticPrecedence(operator: string) {
+  return operator === "+" || operator === "-"
+    ? PRECEDENCE_ADD
+    : PRECEDENCE_MULTIPLY;
+}
+
+function getNodePrecedence(expr: JsonSelector): number | undefined {
+  if (expr.type === "arithmetic") {
+    return getArithmeticPrecedence(expr.operator);
+  }
+  return operatorPrecedence[expr.type];
+}
+
 function formatSubexpression(expr: JsonSelector, precedence: number): string {
   let result = format(expr);
-  const subPrecedence = operatorPrecedence[expr.type];
+  const subPrecedence = getNodePrecedence(expr);
   if (subPrecedence != null && subPrecedence > precedence) {
     result = `(${result})`;
   }
@@ -89,6 +105,9 @@ function format(selector: JsonSelector): string {
             case false:
             case null:
               return String(value);
+          }
+          if (typeof value === "number") {
+            return Object.is(value, -0) ? "-0" : String(value);
           }
           if (typeof value === "string") {
             return formatRawString(value);
@@ -145,6 +164,15 @@ function format(selector: JsonSelector): string {
         const lv = formatSubexpression(lhs, PRECEDENCE_COMPARE);
         const rv = formatSubexpression(rhs, PRECEDENCE_COMPARE - 1);
         return `${lv} ${operator} ${rv}`;
+      },
+      arithmetic({ lhs, operator, rhs }) {
+        const precedence = getArithmeticPrecedence(operator);
+        const lv = formatSubexpression(lhs, precedence);
+        const rv = formatSubexpression(rhs, precedence - 1);
+        return `${lv} ${operator} ${rv}`;
+      },
+      unaryArithmetic({ operator, expression }) {
+        return `${operator}${formatSubexpression(expression, PRECEDENCE_NOT)}`;
       },
       and({ lhs, rhs }) {
         const lv = formatSubexpression(lhs, PRECEDENCE_AND);

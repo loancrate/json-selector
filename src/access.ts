@@ -7,6 +7,8 @@ import {
   isIdentityProjection,
   normalizeSlice,
   objectProject,
+  performArithmetic,
+  performUnaryArithmetic,
   project,
   slice,
 } from "./evaluate";
@@ -467,6 +469,38 @@ function makeAccessorInternal(
             const lv = la.get(context, rootContext);
             const rv = ra.get(context, rootContext);
             return compare(lv, rv, operator);
+          }
+        };
+        return new Accessor();
+      },
+      arithmetic(selector) {
+        const la = makeAccessorInternal(selector.lhs, options);
+        const ra = makeAccessorInternal(selector.rhs, options);
+        const Accessor = class extends ReadOnlyAccessor {
+          constructor() {
+            super(selector);
+          }
+          get(context: unknown, rootContext = context) {
+            return performArithmetic(
+              la.get(context, rootContext),
+              ra.get(context, rootContext),
+              selector.operator,
+            );
+          }
+        };
+        return new Accessor();
+      },
+      unaryArithmetic(selector) {
+        const base = makeAccessorInternal(selector.expression, options);
+        const Accessor = class extends ReadOnlyAccessor {
+          constructor() {
+            super(selector);
+          }
+          get(context: unknown, rootContext = context) {
+            return performUnaryArithmetic(
+              base.get(context, rootContext),
+              selector.operator,
+            );
           }
         };
         return new Accessor();
