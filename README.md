@@ -1,12 +1,15 @@
 # LoanCrate JSON Selectors
 
-LoanCrate JSON Selectors implement the full [JMESPath](https://jmespath.org) specification
-with the following extensions:
+LoanCrate JSON Selectors is a production-focused TypeScript implementation for querying and updating JSON documents with JMESPath-style expressions. It provides a hand-written Pratt parser, typed AST/visitor APIs, formatting back to expression strings, and read/write/delete accessors for mutating selected values.
 
-- A shorthand for selecting an object from an array based on ID.
-- A root-node expression, as added in the [JMESPath Community Edition](https://jmespath.site/main/#spec-root-node).
+## Standards and Extensions
 
-The library passes all [JMESPath compliance tests](https://github.com/jmespath/jmespath.test).
+- **Original [JMESPath](https://jmespath.org) spec**: fully implemented.
+- **[JMESPath Community Edition](https://jmespath.site/main/)**: implemented except `let` expressions.
+- **JSON Selector extension**: ID-based index shorthand (`x['id']`).
+- **JSON Selector extension**: bare numeric literals as general expressions (for example `a-1`, `-1`, `foo[?price > 0]`) in addition to backtick numeric literals.
+
+This includes JMESPath Community features such as root-node expressions (`$`) and arithmetic expressions. The library also passes all [JMESPath compliance tests](https://github.com/jmespath/jmespath.test).
 
 To allow for selection by ID, we extend index expressions to accept a
 [raw string literal](https://jmespath.org/specification.html#raw-string-literals)
@@ -14,6 +17,14 @@ To allow for selection by ID, we extend index expressions to accept a
 of the desired object from an array of objects.
 Formally, `x['y']` would be equivalent to `x[?id == 'y'] | [0]` in JMESPath.
 This should be unambiguous relative to the existing grammar and semantics.
+
+To support arithmetic with bare numeric literals while preserving JMESPath-style
+negative index/slice syntax, `-` is always tokenized as an operator and resolved
+in the parser:
+
+- unary sign over numeric literals is folded at parse time (for example `-42`, `--1`)
+- subtraction in expression position remains standard (for example `a-1`)
+- negative index/slice values are parsed explicitly in bracket/slice grammar (for example `foo[-1]`, `foo[:-1]`)
 
 In addition to the extensions above, this library offers the following features compared to [jmespath.js](https://github.com/jmespath/jmespath.js):
 

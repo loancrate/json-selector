@@ -105,8 +105,11 @@ export class Lexer {
     const start = this.pos;
     let singleType = 0;
     switch (ch) {
+      // End of input
       case -1:
         return { type: TokenType.EOF, text: "", offset: this.length };
+
+      // Multi-character scanner entry points
       case 91: // [
         return this.scanBracket(start);
       case 124: // |
@@ -121,17 +124,41 @@ export class Lexer {
         return this.scanEquals(start);
       case 38: // &
         return this.scanAmpersand(start);
+      case 47: // /
+        return this.scanSlash(start);
+
+      // String/literal openers
       case 34: // "
         return this.scanQuotedString(start);
       case 39: // '
         return this.scanRawString(start);
       case 96: // `
         return this.scanBacktickLiteral(start);
-      case 45: // - (negative number)
-        // Always delegate to scanNumber which will produce a better error
-        // message if not followed by a digit (e.g., "Invalid digit: 'x'" instead
-        // of "Unexpected character: '-'")
-        return this.scanNumber(start);
+
+      // Arithmetic operators (including Unicode aliases)
+      case 43: // +
+        singleType = TokenType.PLUS;
+        break;
+      case 45: // -
+        singleType = TokenType.MINUS;
+        break;
+      case 0x2212: // −
+        singleType = TokenType.MINUS;
+        break;
+      case 42: // *
+        singleType = TokenType.STAR;
+        break;
+      case 0x00d7: // ×
+        singleType = TokenType.MULTIPLY;
+        break;
+      case 37: // %
+        singleType = TokenType.MODULO;
+        break;
+      case 0x00f7: // ÷
+        singleType = TokenType.DIVIDE;
+        break;
+
+      // Delimiters and punctuation
       case 40: // (
         singleType = TokenType.LPAREN;
         break;
@@ -156,14 +183,13 @@ export class Lexer {
       case 58: // :
         singleType = TokenType.COLON;
         break;
+
+      // Context and control symbols
       case 64: // @
         singleType = TokenType.AT;
         break;
       case 36: // $
         singleType = TokenType.DOLLAR;
-        break;
-      case 42: // *
-        singleType = TokenType.STAR;
         break;
       case 63: // ?
         singleType = TokenType.QUESTION;
@@ -301,6 +327,19 @@ export class Lexer {
     }
     // Single & for expression references
     return { type: TokenType.AMPERSAND, text: "&", offset: start };
+  }
+
+  /**
+   * Scan / or //
+   */
+  private scanSlash(start: number): SymbolToken {
+    const ch = this.advanceCharCode(); // consume /
+    if (ch === 47) {
+      // /
+      this.pos++;
+      return { type: TokenType.INT_DIVIDE, text: "//", offset: start };
+    }
+    return { type: TokenType.DIVIDE, text: "/", offset: start };
   }
 
   /**
@@ -473,21 +512,10 @@ export class Lexer {
   }
 
   /**
-   * Scan number: -?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
+   * Scan number: [0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
    */
   private scanNumber(start: number): NumberToken {
     let ch = this.peekCharCode();
-
-    // Optional negative sign
-    if (ch === 45) {
-      ch = this.advanceCharCode();
-    }
-
-    // Integer part (at least one digit required)
-    if (!isDigit(ch)) {
-      const digit = this.input[this.pos] ?? "end of input";
-      throw new Error(`Invalid digit at position ${start}: ${digit}`);
-    }
 
     // Leading zero or digits
     if (ch === 48) {

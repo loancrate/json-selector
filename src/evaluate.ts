@@ -1,8 +1,10 @@
 import deepEqual from "fast-deep-equal";
 import {
+  JsonSelectorArithmeticOperator,
   JsonSelector,
   JsonSelectorCompareOperator,
   JsonSelectorCurrent,
+  JsonSelectorUnaryArithmeticOperator,
 } from "./ast";
 import { type EvaluationContext } from "./functions";
 import { getBuiltinFunctionProvider } from "./functions/builtins";
@@ -126,6 +128,19 @@ function evaluate(
         const rv = evaluate(rhs, context, evalCtx);
         return compare(lv, rv, operator);
       },
+      arithmetic({ lhs, rhs, operator }) {
+        return performArithmetic(
+          evaluate(lhs, context, evalCtx),
+          evaluate(rhs, context, evalCtx),
+          operator,
+        );
+      },
+      unaryArithmetic({ operator, expression }) {
+        return performUnaryArithmetic(
+          evaluate(expression, context, evalCtx),
+          operator,
+        );
+      },
       and({ lhs, rhs }) {
         const lv = evaluate(lhs, context, evalCtx);
         return isFalseOrEmpty(lv) ? lv : evaluate(rhs, context, evalCtx);
@@ -175,6 +190,94 @@ function evaluate(
     },
     context,
   );
+}
+
+export class NotANumberError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotANumberError";
+  }
+
+  static expectedNumber(
+    operand: string,
+    value: unknown,
+    operator: JsonSelectorArithmeticOperator,
+  ): NotANumberError {
+    return new NotANumberError(
+      `not-a-number: expected number for ${operand} of '${operator}', got ${describeValueType(
+        value,
+      )}`,
+    );
+  }
+
+  static divisionByZero(
+    operator: "/" | "//",
+    divisor: number,
+  ): NotANumberError {
+    return new NotANumberError(
+      `not-a-number: division by zero for '${operator}' (right operand: ${String(
+        divisor,
+      )})`,
+    );
+  }
+}
+
+function describeValueType(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  if (isArray(value)) {
+    return "array";
+  }
+  return typeof value;
+}
+
+function ensureNumber(
+  value: unknown,
+  operand: string,
+  operator: JsonSelectorArithmeticOperator,
+): number {
+  if (value == null || typeof value !== "number") {
+    throw NotANumberError.expectedNumber(operand, value, operator);
+  }
+  return value;
+}
+
+export function performArithmetic(
+  lv: unknown,
+  rv: unknown,
+  operator: JsonSelectorArithmeticOperator,
+): number {
+  const l = ensureNumber(lv, "left operand", operator);
+  const r = ensureNumber(rv, "right operand", operator);
+  switch (operator) {
+    case "+":
+      return l + r;
+    case "-":
+      return l - r;
+    case "*":
+      return l * r;
+    case "/":
+      if (!r) {
+        throw NotANumberError.divisionByZero("/", r);
+      }
+      return l / r;
+    case "%":
+      return l % r;
+    case "//":
+      if (!r) {
+        throw NotANumberError.divisionByZero("//", r);
+      }
+      return Math.floor(l / r);
+  }
+}
+
+export function performUnaryArithmetic(
+  value: unknown,
+  operator: JsonSelectorUnaryArithmeticOperator,
+): number {
+  const number = ensureNumber(value, "operand", operator);
+  return operator === "-" ? -number : number;
 }
 
 /** Checks whether a projection is trivial (absent or `@`), meaning array elements pass through unchanged. */

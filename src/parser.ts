@@ -1,5 +1,11 @@
 import { JsonValue } from "type-fest";
-import { JsonSelector, JsonSelectorCurrent, JsonSelectorRoot } from "./ast";
+import {
+  JsonSelector,
+  JsonSelectorArithmeticOperator,
+  JsonSelectorCompareOperator,
+  JsonSelectorCurrent,
+  JsonSelectorRoot,
+} from "./ast";
 import { Lexer } from "./lexer";
 import { Token, TOKEN_LIMIT, TokenType } from "./token";
 
@@ -16,7 +22,9 @@ const BP_PIPE = 1;
 const BP_TERNARY = 2;
 const BP_OR = 3;
 const BP_AND = 4;
-const BP_COMPARE = 7;
+const BP_COMPARE = 5;
+const BP_ADD = 6;
+const BP_MUL = 7;
 const BP_FLATTEN = 9;
 const BP_FILTER = 21;
 const BP_DOT = 40;
@@ -48,6 +56,13 @@ const TOKEN_BP: number[] = (() => {
   bp[TokenType.LTE] = BP_COMPARE; // <=
   bp[TokenType.GT] = BP_COMPARE; // >
   bp[TokenType.GTE] = BP_COMPARE; // >=
+  bp[TokenType.PLUS] = BP_ADD; // +
+  bp[TokenType.MINUS] = BP_ADD; // -
+  bp[TokenType.STAR] = BP_MUL; // * (multiplication in led context)
+  bp[TokenType.MULTIPLY] = BP_MUL; // ×
+  bp[TokenType.DIVIDE] = BP_MUL; // /, ÷
+  bp[TokenType.MODULO] = BP_MUL; // %
+  bp[TokenType.INT_DIVIDE] = BP_MUL; // //
 
   // Projection operators
   // flatten has lower bp (9) than star/filter to allow chaining: foo[*][] or foo[?x][].bar
@@ -102,17 +117,21 @@ export class Parser {
    * @returns Parsed expression node
    */
   private expression(rbp: number): JsonSelector {
-    // Get prefix/primary expression via nud (null denotation)
-    let left = this.nud();
+    return this.expressionFrom(this.nud(), rbp);
+  }
 
-    // Inline binding power check - hot path optimization
+  /**
+   * Continue Pratt parsing from a given left-hand side node.
+   * Applies led (left denotation) operators while their binding power exceeds rbp.
+   */
+  private expressionFrom(left: JsonSelector, rbp: number): JsonSelector {
+    let current = left;
     let token = this.lexer.peek();
     while (token.type !== TokenType.EOF && rbp < TOKEN_BP[token.type]) {
-      left = this.led(left, token);
+      current = this.led(current, token);
       token = this.lexer.peek();
     }
-
-    return left;
+    return current;
   }
 
   /**
@@ -165,21 +184,12 @@ export class Parser {
         return ROOT_NODE;
 
       case TokenType.RAW_STRING:
+      case TokenType.TRUE:
+      case TokenType.FALSE:
+      case TokenType.NULL:
+      case TokenType.NUMBER:
         this.lexer.advance();
         return { type: "literal", value: token.value };
-
-      // Keyword literals: true, false, null
-      case TokenType.TRUE:
-        this.lexer.advance();
-        return { type: "literal", value: true };
-
-      case TokenType.FALSE:
-        this.lexer.advance();
-        return { type: "literal", value: false };
-
-      case TokenType.NULL:
-        this.lexer.advance();
-        return { type: "literal", value: null };
 
       case TokenType.BACKTICK_LITERAL: {
         this.lexer.advance();
@@ -201,6 +211,14 @@ export class Parser {
           type: "not",
           expression: this.expression(BP_NOT),
         };
+
+      case TokenType.PLUS:
+        this.lexer.advance();
+        return this.foldUnaryArithmeticLiteral("+", this.expression(BP_ADD));
+
+      case TokenType.MINUS:
+        this.lexer.advance();
+        return this.foldUnaryArithmeticLiteral("-", this.expression(BP_ADD));
 
       case TokenType.LPAREN: {
         this.lexer.advance();
@@ -326,6 +344,25 @@ export class Parser {
           rhs: this.expression(BP_OR),
         };
 
+      case TokenType.PLUS:
+        return this.parseArithmetic(left, "+", BP_ADD);
+
+      case TokenType.MINUS:
+        return this.parseArithmetic(left, "-", BP_ADD);
+
+      case TokenType.STAR:
+      case TokenType.MULTIPLY:
+        return this.parseArithmetic(left, "*", BP_MUL);
+
+      case TokenType.DIVIDE:
+        return this.parseArithmetic(left, "/", BP_MUL);
+
+      case TokenType.MODULO:
+        return this.parseArithmetic(left, "%", BP_MUL);
+
+      case TokenType.INT_DIVIDE:
+        return this.parseArithmetic(left, "//", BP_MUL);
+
       case TokenType.QUESTION: {
         this.lexer.advance();
         const consequent = this.expression(0);
@@ -352,64 +389,79 @@ export class Parser {
       }
 
       case TokenType.EQ:
-        this.lexer.advance();
-        return {
-          type: "compare",
-          operator: "==",
-          lhs: left,
-          rhs: this.expression(BP_COMPARE),
-        };
+        return this.parseCompare(left, "==");
 
       case TokenType.NEQ:
-        this.lexer.advance();
-        return {
-          type: "compare",
-          operator: "!=",
-          lhs: left,
-          rhs: this.expression(BP_COMPARE),
-        };
+        return this.parseCompare(left, "!=");
 
       case TokenType.LT:
-        this.lexer.advance();
-        return {
-          type: "compare",
-          operator: "<",
-          lhs: left,
-          rhs: this.expression(BP_COMPARE),
-        };
+        return this.parseCompare(left, "<");
 
       case TokenType.LTE:
-        this.lexer.advance();
-        return {
-          type: "compare",
-          operator: "<=",
-          lhs: left,
-          rhs: this.expression(BP_COMPARE),
-        };
+        return this.parseCompare(left, "<=");
 
       case TokenType.GT:
-        this.lexer.advance();
-        return {
-          type: "compare",
-          operator: ">",
-          lhs: left,
-          rhs: this.expression(BP_COMPARE),
-        };
+        return this.parseCompare(left, ">");
 
       case TokenType.GTE:
-        this.lexer.advance();
-        return {
-          type: "compare",
-          operator: ">=",
-          lhs: left,
-          rhs: this.expression(BP_COMPARE),
-        };
+        return this.parseCompare(left, ">=");
 
       default:
         throw new Error(
           `Unexpected token at position ${token.offset}: ${token.text}`,
         );
     }
+  }
+
+  private parseCompare(
+    left: JsonSelector,
+    operator: JsonSelectorCompareOperator,
+  ): JsonSelector {
+    this.lexer.advance();
+    return {
+      type: "compare",
+      operator,
+      lhs: left,
+      rhs: this.expression(BP_COMPARE),
+    };
+  }
+
+  private parseArithmetic(
+    left: JsonSelector,
+    operator: JsonSelectorArithmeticOperator,
+    bp: number,
+  ): JsonSelector {
+    this.lexer.advance();
+    return {
+      type: "arithmetic",
+      operator,
+      lhs: left,
+      rhs: this.expression(bp),
+    };
+  }
+
+  private foldUnaryArithmeticLiteral(
+    operator: "+" | "-",
+    expression: JsonSelector,
+  ): JsonSelector {
+    if (expression.type === "literal" && typeof expression.value === "number") {
+      const value = operator === "+" ? expression.value : -expression.value;
+      return expression.backtickSyntax === undefined
+        ? {
+            type: "literal",
+            value,
+          }
+        : {
+            type: "literal",
+            value,
+            backtickSyntax: expression.backtickSyntax,
+          };
+    }
+    return {
+      type: "unaryArithmetic",
+      operator,
+      expression,
+    };
   }
 
   /**
@@ -461,35 +513,16 @@ export class Parser {
         }
 
         // Build the rest of the * expression and continue parsing multi-select list
-        let starExpr: JsonSelector = {
-          type: "objectProject",
-          expression: CURRENT_NODE,
-          projection: CURRENT_NODE,
-        };
-        // Continue parsing with led() until we hit comma or rbracket
-        let ledToken = this.lexer.peek();
-        while (
-          ledToken.type !== TokenType.EOF &&
-          ledToken.type !== TokenType.COMMA &&
-          ledToken.type !== TokenType.RBRACKET &&
-          TOKEN_BP[ledToken.type] > 0
-        ) {
-          starExpr = this.led(starExpr, ledToken);
-          ledToken = this.lexer.peek();
-        }
+        const starExpr = this.expressionFrom(
+          {
+            type: "objectProject",
+            expression: CURRENT_NODE,
+            projection: CURRENT_NODE,
+          },
+          0,
+        );
 
-        const expressions: JsonSelector[] = [starExpr];
-
-        while (this.lexer.tryConsume(TokenType.COMMA)) {
-          expressions.push(this.expression(0));
-        }
-
-        this.lexer.consume(TokenType.RBRACKET);
-
-        return {
-          type: "multiSelectList",
-          expressions,
-        };
+        return this.parseMultiSelectListFromBracket(starExpr);
       }
 
       case TokenType.RAW_STRING: {
@@ -503,20 +536,30 @@ export class Parser {
         };
       }
 
-      case TokenType.NUMBER: {
-        const num = this.lexer.consume(TokenType.NUMBER).value;
-        if (this.lexer.peek().type === TokenType.COLON) {
-          // Slice: foo[n:...]
-          const sliceNode = this.parseSlice(left, num);
-          return this.parseProjectionRHS(sliceNode);
+      case TokenType.NUMBER:
+        return this.parseIndexOrSlice(
+          left,
+          this.lexer.consume(TokenType.NUMBER).value,
+        );
+
+      case TokenType.MINUS: {
+        this.lexer.consume(TokenType.MINUS);
+
+        const numberToken = this.lexer.tryConsume(TokenType.NUMBER);
+        if (numberToken) {
+          return this.parseIndexOrSlice(left, -numberToken.value);
         }
-        // Index: foo[n]
-        this.lexer.consume(TokenType.RBRACKET);
-        return {
-          type: "indexAccess",
-          expression: left,
-          index: num,
-        };
+
+        // Root multi-select list can still start with unary minus (e.g. [-foo])
+        if (left !== CURRENT_NODE) {
+          throw new Error(
+            `Unexpected token after '[' at position ${token.offset}: ${token.text}`,
+          );
+        }
+
+        return this.parseMultiSelectListFromBracket(
+          this.foldUnaryArithmeticLiteral("-", this.expression(BP_ADD)),
+        );
       }
 
       case TokenType.COLON: {
@@ -535,19 +578,7 @@ export class Parser {
           );
         }
 
-        const expressions: JsonSelector[] = [];
-        expressions.push(this.expression(0));
-
-        while (this.lexer.tryConsume(TokenType.COMMA)) {
-          expressions.push(this.expression(0));
-        }
-
-        this.lexer.consume(TokenType.RBRACKET);
-
-        return {
-          type: "multiSelectList",
-          expressions,
-        };
+        return this.parseMultiSelectListFromBracket(this.expression(0));
       }
     }
   }
@@ -598,86 +629,62 @@ export class Parser {
    * but our nested structure creates clearer semantics for expressions like foo[*].bar[*].
    */
   private parseProjectionRHS(projectionNode: JsonSelector): JsonSelector {
-    // Check what comes next - inline binding power check
+    const rhs = this.parseProjectionContinuation();
+    if (rhs === undefined) {
+      return projectionNode;
+    }
+
+    // [*] nodes already have a projection field, so update it directly
+    //
+    // SAFETY: This mutation is safe because projectionNode is freshly created
+    // in parseBracketExpression, parseFilterExpression, or parseSlice,
+    // and has not been shared or returned yet.
+    if (projectionNode.type === "project") {
+      projectionNode.projection = rhs;
+      return projectionNode;
+    }
+
+    // flatten/filter/slice nodes don't have projection fields, so wrap them
+    return {
+      type: "project",
+      expression: projectionNode,
+      projection: rhs,
+    };
+  }
+
+  /**
+   * Parse the continuation of a projection: the chain of postfix operators
+   * (dot, bracket, filter) that apply to each projected element.
+   *
+   * Returns undefined if the next token does not continue the projection
+   * (e.g. pipe, comparison, EOF, or closing brackets).
+   */
+  private parseProjectionContinuation(): JsonSelector | undefined {
     const token = this.lexer.peek();
-    if (token.type === TokenType.EOF) {
-      return projectionNode;
-    }
-
-    const nextBp = TOKEN_BP[token.type];
-
-    // Terminators (bp < threshold) stop projection continuation
-    if (nextBp < PROJECTION_STOP_BP) {
-      return projectionNode;
-    }
-
-    // Continue with dot, bracket, flatten, or filter - these are postfix operators
-    // Parse them starting from @ (current context within the projection)
     if (
-      token.type === TokenType.DOT ||
-      token.type === TokenType.LBRACKET ||
-      token.type === TokenType.FLATTEN_BRACKET ||
-      token.type === TokenType.FILTER_BRACKET
+      token.type !== TokenType.DOT &&
+      token.type !== TokenType.LBRACKET &&
+      token.type !== TokenType.FILTER_BRACKET
     ) {
-      // Start with @ (current element in projection) and build up the RHS expression
-      let rhs: JsonSelector = CURRENT_NODE;
-
-      // Keep applying postfix operators until we hit a terminator
-      let rhsToken = this.lexer.peek();
-      while (
-        rhsToken.type !== TokenType.EOF &&
-        TOKEN_BP[rhsToken.type] >= PROJECTION_STOP_BP
-      ) {
-        rhs = this.led(rhs, rhsToken);
-        rhsToken = this.lexer.peek();
-      }
-
-      // Update the projection to apply RHS to each element
-      // [*] nodes already have a projection field, so update it directly
-      //
-      // SAFETY: This mutation is safe because projectionNode is freshly created
-      // in parseBracketExpression, parseFilterExpression, or parseSlice,
-      // and has not been shared or returned yet.
-      // Mutating here avoids allocating a new node for the common case of [*].bar
-      if (projectionNode.type === "project") {
-        projectionNode.projection = rhs;
-        return projectionNode;
-      }
-
-      // flatten/filter/slice nodes don't have projection fields, so wrap them
-      // This creates: project(flatten/filter/slice(...), rhs)
-      return {
-        type: "project",
-        expression: projectionNode,
-        projection: rhs,
-      };
+      return undefined;
     }
-
-    return projectionNode;
+    return this.expressionFrom(CURRENT_NODE, PROJECTION_STOP_BP - 1);
   }
 
   /**
    * Parse slice after [ and optional start have been consumed: [start:end:step]
    *
-   * Called when pattern is [:...] (start undefined) or [n:...] (start known).
+   * Called when pattern is [:...] (start undefined) or [n:...] / [-n:...] (start known).
    */
   private parseSlice(left: JsonSelector, start?: number): JsonSelector {
-    // [ and optional start NUMBER already consumed, current token should be COLON
+    // [ and optional start already consumed, current token should be COLON
     this.lexer.consume(TokenType.COLON);
 
-    let end: number | undefined;
+    const end = this.tryConsumeSignedNumber();
     let step: number | undefined;
 
-    const endToken = this.lexer.tryConsume(TokenType.NUMBER);
-    if (endToken) {
-      end = endToken.value;
-    }
-
     if (this.lexer.tryConsume(TokenType.COLON)) {
-      const stepToken = this.lexer.tryConsume(TokenType.NUMBER);
-      if (stepToken) {
-        step = stepToken.value;
-      }
+      step = this.tryConsumeSignedNumber();
     }
 
     this.lexer.consume(TokenType.RBRACKET);
@@ -689,6 +696,40 @@ export class Parser {
       end,
       step,
     };
+  }
+
+  /**
+   * After consuming [ and a number, determine if this is an index or slice.
+   */
+  private parseIndexOrSlice(left: JsonSelector, num: number): JsonSelector {
+    if (this.lexer.peek().type === TokenType.COLON) {
+      return this.parseProjectionRHS(this.parseSlice(left, num));
+    }
+    this.lexer.consume(TokenType.RBRACKET);
+    return { type: "indexAccess", expression: left, index: num };
+  }
+
+  private tryConsumeSignedNumber(): number | undefined {
+    const token = this.lexer.peek();
+
+    if (token.type === TokenType.NUMBER) {
+      return this.lexer.consume(TokenType.NUMBER).value;
+    }
+
+    if (token.type === TokenType.PLUS || token.type === TokenType.MINUS) {
+      const sign = token.type === TokenType.MINUS ? -1 : 1;
+      this.lexer.advance();
+      const numberToken = this.lexer.tryConsume(TokenType.NUMBER);
+      if (!numberToken) {
+        const nextToken = this.lexer.peek();
+        throw new Error(
+          `Expected number at position ${nextToken.offset}: ${nextToken.text}`,
+        );
+      }
+      return sign * numberToken.value;
+    }
+
+    return undefined;
   }
 
   private parseIdentifier(): string {
@@ -704,6 +745,19 @@ export class Parser {
 
     const token = this.lexer.peek();
     throw new Error(`Expected identifier at position ${token.offset}`);
+  }
+
+  /**
+   * Parse comma-separated expressions and closing bracket into a multi-select list.
+   * Called after the first expression has already been parsed.
+   */
+  private parseMultiSelectListFromBracket(first: JsonSelector): JsonSelector {
+    const expressions = [first];
+    while (this.lexer.tryConsume(TokenType.COMMA)) {
+      expressions.push(this.expression(0));
+    }
+    this.lexer.consume(TokenType.RBRACKET);
+    return { type: "multiSelectList", expressions };
   }
 
   /**
@@ -777,31 +831,14 @@ export class Parser {
 
   /**
    * Parse object projection: creates the objectProject node and parses
-   * any continuation operators (similar to parseProjectionRHS).
+   * any continuation operators.
    */
   private parseObjectProjection(expression: JsonSelector): JsonSelector {
-    let projection: JsonSelector = CURRENT_NODE;
-
-    const token = this.lexer.peek();
-    if (
-      token.type !== TokenType.EOF &&
-      TOKEN_BP[token.type] >= PROJECTION_STOP_BP &&
-      (token.type === TokenType.DOT ||
-        token.type === TokenType.LBRACKET ||
-        token.type === TokenType.FLATTEN_BRACKET ||
-        token.type === TokenType.FILTER_BRACKET)
-    ) {
-      let rhsToken = this.lexer.peek();
-      while (
-        rhsToken.type !== TokenType.EOF &&
-        TOKEN_BP[rhsToken.type] >= PROJECTION_STOP_BP
-      ) {
-        projection = this.led(projection, rhsToken);
-        rhsToken = this.lexer.peek();
-      }
-    }
-
-    return { type: "objectProject", expression, projection };
+    return {
+      type: "objectProject",
+      expression,
+      projection: this.parseProjectionContinuation() ?? CURRENT_NODE,
+    };
   }
 
   /**
@@ -845,6 +882,16 @@ export class Parser {
     expressions.push(this.expression(0));
 
     while (this.lexer.tryConsume(TokenType.COMMA)) {
+      const next = this.lexer.peek();
+      if (
+        next.type === TokenType.NUMBER ||
+        next.type === TokenType.COLON ||
+        next.type === TokenType.RAW_STRING
+      ) {
+        throw new Error(
+          `Unexpected token after '.[' at position ${next.offset}: ${next.text}`,
+        );
+      }
       expressions.push(this.expression(0));
     }
 

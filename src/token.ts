@@ -26,6 +26,14 @@ export const enum TokenType {
   GT,
   GTE,
 
+  // Arithmetic operators
+  PLUS, // "+" (addition, unary plus)
+  MINUS, // "-" (subtraction, unary minus; also Unicode "−")
+  MULTIPLY, // "×" (Unicode U+00D7 multiplication sign only)
+  DIVIDE, // "/" or "÷" (Unicode U+00F7)
+  MODULO, // "%"
+  INT_DIVIDE, // "//"
+
   // Special symbols
   AT,
   DOLLAR,
@@ -153,6 +161,12 @@ const TOKEN_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.LTE]: "'<='",
   [TokenType.GT]: "'>'",
   [TokenType.GTE]: "'>='",
+  [TokenType.PLUS]: "'+'",
+  [TokenType.MINUS]: "'-'",
+  [TokenType.MULTIPLY]: "'\u00D7'",
+  [TokenType.DIVIDE]: "'/'",
+  [TokenType.MODULO]: "'%'",
+  [TokenType.INT_DIVIDE]: "'//'",
   [TokenType.AT]: "'@'",
   [TokenType.DOLLAR]: "'$'",
   [TokenType.STAR]: "'*'",

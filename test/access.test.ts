@@ -322,6 +322,40 @@ describe("makeJsonSelectorAccessor", () => {
     });
   });
 
+  describe("arithmetic (+, -, *, /, %, //)", () => {
+    test("get computes arithmetic value", () => {
+      const acc = accessor("a * b + c");
+      expect(acc.get({ a: 2, b: 3, c: 4 })).toBe(10);
+    });
+
+    test("unary arithmetic computes value", () => {
+      expect(accessor("-a").get({ a: 5 })).toBe(-5);
+      expect(accessor("+a").get({ a: 5 })).toBe(5);
+    });
+
+    test("set is no-op", () => {
+      const acc = accessor("a + b");
+      const obj = { a: 1, b: 2 };
+      acc.set(100, obj);
+      expect(obj).toStrictEqual({ a: 1, b: 2 });
+      expect(acc.get(obj)).toBe(3);
+    });
+
+    test("delete is no-op", () => {
+      const acc = accessor("-a");
+      const obj = { a: 2 };
+      acc.delete(obj);
+      expect(obj).toStrictEqual({ a: 2 });
+      expect(acc.get(obj)).toBe(-2);
+    });
+
+    test("isValidContext always returns true", () => {
+      const acc = accessor("a + b");
+      expect(acc.isValidContext(null)).toBe(true);
+      expect(acc.isValidContext({})).toBe(true);
+    });
+  });
+
   describe("and (&&)", () => {
     test("returns lhs if falsy (short-circuit)", () => {
       const acc = accessor("foo && bar");

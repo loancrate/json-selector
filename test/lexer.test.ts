@@ -34,6 +34,10 @@ describe("Lexer", () => {
       [".", TokenType.DOT],
       [",", TokenType.COMMA],
       [":", TokenType.COLON],
+      ["+", TokenType.PLUS],
+      ["-", TokenType.MINUS],
+      ["/", TokenType.DIVIDE],
+      ["%", TokenType.MODULO],
       ["@", TokenType.AT],
       ["$", TokenType.DOLLAR],
       ["*", TokenType.STAR],
@@ -61,6 +65,7 @@ describe("Lexer", () => {
       [">=", TokenType.GTE, ">="],
       ["==", TokenType.EQ, "=="],
       ["&&", TokenType.AND, "&&"],
+      ["//", TokenType.INT_DIVIDE, "//"],
     ];
 
     test.each(cases)("tokenizes %s", (input, expectedType, expectedText) => {
@@ -96,6 +101,36 @@ describe("Lexer", () => {
         { type: TokenType.GT },
         { type: TokenType.GTE },
       ]);
+    });
+
+    test("distinguishes / from //", () => {
+      expect(tokens("/ //")).toMatchObject([
+        { type: TokenType.DIVIDE },
+        { type: TokenType.INT_DIVIDE },
+      ]);
+    });
+  });
+
+  describe("unicode arithmetic operators", () => {
+    test("tokenizes × as MULTIPLY", () => {
+      expect(tokenize("×")).toMatchObject({
+        type: TokenType.MULTIPLY,
+        text: "×",
+      });
+    });
+
+    test("tokenizes ÷ as DIVIDE", () => {
+      expect(tokenize("÷")).toMatchObject({
+        type: TokenType.DIVIDE,
+        text: "÷",
+      });
+    });
+
+    test("tokenizes − as MINUS", () => {
+      expect(tokenize("−")).toMatchObject({
+        type: TokenType.MINUS,
+        text: "−",
+      });
     });
   });
 
@@ -368,12 +403,11 @@ describe("Lexer", () => {
       });
     });
 
-    test("tokenizes negative integer", () => {
-      expect(tokenize("-42")).toMatchObject({
-        type: TokenType.NUMBER,
-        text: "-42",
-        value: -42,
-      });
+    test("tokenizes leading minus before integer as MINUS then NUMBER", () => {
+      expect(tokens("-42")).toMatchObject([
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, text: "42", value: 42 },
+      ]);
     });
 
     test("tokenizes decimal number", () => {
@@ -384,11 +418,11 @@ describe("Lexer", () => {
       });
     });
 
-    test("tokenizes negative decimal", () => {
-      expect(tokenize("-3.14")).toMatchObject({
-        type: TokenType.NUMBER,
-        value: -3.14,
-      });
+    test("tokenizes leading minus before decimal as MINUS then NUMBER", () => {
+      expect(tokens("-3.14")).toMatchObject([
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, value: 3.14 },
+      ]);
     });
 
     test("tokenizes number with lowercase exponent", () => {
@@ -426,11 +460,11 @@ describe("Lexer", () => {
       });
     });
 
-    test("tokenizes complex number", () => {
-      expect(tokenize("-123.456e-7")).toMatchObject({
-        type: TokenType.NUMBER,
-        value: -123.456e-7,
-      });
+    test("tokenizes complex number after leading minus", () => {
+      expect(tokens("-123.456e-7")).toMatchObject([
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, value: 123.456e-7 },
+      ]);
     });
 
     test("stops at dot without following digit", () => {
@@ -441,14 +475,18 @@ describe("Lexer", () => {
       ]);
     });
 
-    test("throws on invalid digit after negative sign", () => {
-      expect(() => tokenize("-x")).toThrow("Invalid digit at position 0: x");
+    test("tokenizes -x as MINUS then identifier", () => {
+      expect(tokens("-x")).toMatchObject([
+        { type: TokenType.MINUS },
+        { type: TokenType.IDENTIFIER, value: "x" },
+      ]);
     });
 
-    test("throws on negative sign at end of input", () => {
-      expect(() => tokenize("-")).toThrow(
-        "Invalid digit at position 0: end of input",
-      );
+    test("tokenizes standalone - as MINUS", () => {
+      expect(tokenize("-")).toMatchObject({
+        type: TokenType.MINUS,
+        text: "-",
+      });
     });
 
     test("throws on invalid exponent", () => {
@@ -465,6 +503,76 @@ describe("Lexer", () => {
 
     test("throws on invalid exponent with non-digit", () => {
       expect(() => tokenize("1ex")).toThrow("Invalid number at position 0: x");
+    });
+  });
+
+  describe("minus tokenization", () => {
+    test("after identifier, - is MINUS", () => {
+      expect(tokens("a-1")).toMatchObject([
+        { type: TokenType.IDENTIFIER },
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, value: 1 },
+      ]);
+    });
+
+    test("in bracket index, -digit is MINUS then NUMBER", () => {
+      expect(tokens("foo[-1]")).toMatchObject([
+        { type: TokenType.IDENTIFIER },
+        { type: TokenType.LBRACKET },
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, value: 1 },
+        { type: TokenType.RBRACKET },
+      ]);
+    });
+
+    test("in slice bounds, -digit is MINUS then NUMBER", () => {
+      expect(tokens("foo[1:-2]")).toMatchObject([
+        { type: TokenType.IDENTIFIER },
+        { type: TokenType.LBRACKET },
+        { type: TokenType.NUMBER, value: 1 },
+        { type: TokenType.COLON },
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, value: 2 },
+        { type: TokenType.RBRACKET },
+      ]);
+    });
+
+    test("at start with digit, -digit starts with MINUS", () => {
+      expect(tokenize("-42")).toMatchObject({
+        type: TokenType.MINUS,
+      });
+    });
+
+    test("at start without digit, - is MINUS", () => {
+      expect(tokenize("-foo")).toMatchObject({
+        type: TokenType.MINUS,
+      });
+    });
+
+    test("after rparen, - is MINUS", () => {
+      expect(tokens("(a)-1")).toMatchObject([
+        { type: TokenType.LPAREN },
+        { type: TokenType.IDENTIFIER },
+        { type: TokenType.RPAREN },
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, value: 1 },
+      ]);
+    });
+
+    test("after number, - is MINUS", () => {
+      expect(tokens("1-2")).toMatchObject([
+        { type: TokenType.NUMBER, value: 1 },
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, value: 2 },
+      ]);
+    });
+
+    test("--1 tokenizes as MINUS MINUS NUMBER", () => {
+      expect(tokens("--1")).toMatchObject([
+        { type: TokenType.MINUS },
+        { type: TokenType.MINUS },
+        { type: TokenType.NUMBER, value: 1 },
+      ]);
     });
   });
 

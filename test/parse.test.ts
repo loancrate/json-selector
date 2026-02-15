@@ -702,6 +702,229 @@ describe("parseJsonSelector", () => {
     });
   });
 
+  describe("arithmetic operators", () => {
+    test.each<
+      [
+        string,
+        string,
+        JsonSelector,
+      ]
+    >([
+      [
+        "addition",
+        "a + b",
+        {
+          type: "arithmetic",
+          operator: "+",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+      ],
+      [
+        "subtraction",
+        "a - b",
+        {
+          type: "arithmetic",
+          operator: "-",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+      ],
+      [
+        "multiply",
+        "a * b",
+        {
+          type: "arithmetic",
+          operator: "*",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+      ],
+      [
+        "divide",
+        "a / b",
+        {
+          type: "arithmetic",
+          operator: "/",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+      ],
+      [
+        "modulo",
+        "a % b",
+        {
+          type: "arithmetic",
+          operator: "%",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+      ],
+      [
+        "integer division",
+        "a // b",
+        {
+          type: "arithmetic",
+          operator: "//",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+      ],
+    ])("parses %s", (_name, expression, expected) => {
+      expect(parseJsonSelector(expression)).toStrictEqual<JsonSelector>(
+        expected,
+      );
+    });
+
+    test("parses unary + and -", () => {
+      expect(parseJsonSelector("+a")).toStrictEqual<JsonSelector>({
+        type: "unaryArithmetic",
+        operator: "+",
+        expression: { type: "identifier", id: "a" },
+      });
+
+      expect(parseJsonSelector("-a")).toStrictEqual<JsonSelector>({
+        type: "unaryArithmetic",
+        operator: "-",
+        expression: { type: "identifier", id: "a" },
+      });
+    });
+
+    test("constant-folds unary sign over numeric literals", () => {
+      expect(parseJsonSelector("+42")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: 42,
+      });
+      expect(parseJsonSelector("-42")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: -42,
+      });
+      expect(parseJsonSelector("--1")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: 1,
+      });
+      expect(parseJsonSelector("-`1`")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: -1,
+        backtickSyntax: true,
+      });
+    });
+
+    test("multiplication binds tighter than addition", () => {
+      expect(parseJsonSelector("a + b * c")).toStrictEqual<JsonSelector>({
+        type: "arithmetic",
+        operator: "+",
+        lhs: { type: "identifier", id: "a" },
+        rhs: {
+          type: "arithmetic",
+          operator: "*",
+          lhs: { type: "identifier", id: "b" },
+          rhs: { type: "identifier", id: "c" },
+        },
+      });
+    });
+
+    test("addition occurs after multiplicative lhs", () => {
+      expect(parseJsonSelector("a * b + c")).toStrictEqual<JsonSelector>({
+        type: "arithmetic",
+        operator: "+",
+        lhs: {
+          type: "arithmetic",
+          operator: "*",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        rhs: { type: "identifier", id: "c" },
+      });
+    });
+
+    test("additive operators are left-associative", () => {
+      expect(parseJsonSelector("a + b + c")).toStrictEqual<JsonSelector>({
+        type: "arithmetic",
+        operator: "+",
+        lhs: {
+          type: "arithmetic",
+          operator: "+",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        rhs: { type: "identifier", id: "c" },
+      });
+    });
+
+    test("arithmetic binds tighter than compare", () => {
+      expect(parseJsonSelector("a + b == c")).toStrictEqual<JsonSelector>({
+        type: "compare",
+        operator: "==",
+        lhs: {
+          type: "arithmetic",
+          operator: "+",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        rhs: { type: "identifier", id: "c" },
+      });
+    });
+
+    test("star is wildcard in nud and multiply in led", () => {
+      const wildcard = parseJsonSelector("*");
+      expect(wildcard).toStrictEqual<JsonSelector>({
+        type: "objectProject",
+        expression: { type: "current" },
+        projection: { type: "current" },
+      });
+
+      expect(parseJsonSelector("a * b")).toStrictEqual<JsonSelector>({
+        type: "arithmetic",
+        operator: "*",
+        lhs: { type: "identifier", id: "a" },
+        rhs: { type: "identifier", id: "b" },
+      });
+    });
+
+    test("parentheses override arithmetic precedence", () => {
+      expect(parseJsonSelector("(a + b) * c")).toStrictEqual<JsonSelector>({
+        type: "arithmetic",
+        operator: "*",
+        lhs: {
+          type: "arithmetic",
+          operator: "+",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        rhs: { type: "identifier", id: "c" },
+      });
+    });
+
+    test("bare number is parsed as a literal expression", () => {
+      expect(parseJsonSelector("42")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: 42,
+      });
+    });
+
+    test("parses unicode arithmetic operators", () => {
+      expect(parseJsonSelector("a × b")).toStrictEqual<JsonSelector>({
+        type: "arithmetic",
+        operator: "*",
+        lhs: { type: "identifier", id: "a" },
+        rhs: { type: "identifier", id: "b" },
+      });
+      expect(parseJsonSelector("a ÷ b")).toStrictEqual<JsonSelector>({
+        type: "arithmetic",
+        operator: "/",
+        lhs: { type: "identifier", id: "a" },
+        rhs: { type: "identifier", id: "b" },
+      });
+      expect(parseJsonSelector("a − b")).toStrictEqual<JsonSelector>({
+        type: "arithmetic",
+        operator: "-",
+        lhs: { type: "identifier", id: "a" },
+        rhs: { type: "identifier", id: "b" },
+      });
+    });
+  });
+
   describe("logical operators", () => {
     test("&& operator", () => {
       expect(parseJsonSelector("a && b")).toStrictEqual<JsonSelector>({
@@ -1049,6 +1272,18 @@ describe("parseJsonSelector", () => {
     test("object projection with non-continuation high-bp token", () => {
       expect(() => parseJsonSelector("* !foo")).toThrow();
     });
+
+    test("foo[-expr] throws (minus without number after expression)", () => {
+      expect(() => parseJsonSelector("foo[-bar]")).toThrow(
+        "Unexpected token after '['",
+      );
+    });
+
+    test("sign without number in slice throws", () => {
+      expect(() => parseJsonSelector("foo[:+]")).toThrow(
+        "Expected number at position",
+      );
+    });
   });
 
   describe("negative indices", () => {
@@ -1130,6 +1365,21 @@ describe("parseJsonSelector", () => {
       expect(result.expressions[2]).toStrictEqual({
         type: "identifier",
         id: "c",
+      });
+    });
+
+    test("multi-select list starting with unary minus", () => {
+      const result = parseJsonSelector("[-a, b]");
+      assert(result.type === "multiSelectList");
+      expect(result.expressions).toHaveLength(2);
+      expect(result.expressions[0]).toStrictEqual({
+        type: "unaryArithmetic",
+        operator: "-",
+        expression: { type: "identifier", id: "a" },
+      });
+      expect(result.expressions[1]).toStrictEqual({
+        type: "identifier",
+        id: "b",
       });
     });
 

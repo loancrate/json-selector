@@ -103,6 +103,33 @@ export interface JsonSelectorCompare {
   rhs: JsonSelector;
 }
 
+/** The set of arithmetic operators supported in binary arithmetic expressions. */
+export type JsonSelectorArithmeticOperator =
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | "%"
+  | "//";
+
+/** Binary arithmetic operation, e.g. `a + b`, `price * quantity`, `x // 2`. */
+export interface JsonSelectorArithmetic {
+  type: "arithmetic";
+  operator: JsonSelectorArithmeticOperator;
+  lhs: JsonSelector;
+  rhs: JsonSelector;
+}
+
+/** The set of arithmetic operators supported in unary arithmetic expressions. */
+export type JsonSelectorUnaryArithmeticOperator = "+" | "-";
+
+/** Unary arithmetic operation, e.g. `-a` or `+value`. */
+export interface JsonSelectorUnaryArithmetic {
+  type: "unaryArithmetic";
+  operator: JsonSelectorUnaryArithmeticOperator;
+  expression: JsonSelector;
+}
+
 /** Short-circuit logical AND: returns the left operand if falsy, otherwise the right operand. */
 export interface JsonSelectorAnd {
   type: "and";
@@ -175,6 +202,8 @@ export type JsonSelector =
   | JsonSelectorFlatten
   | JsonSelectorNot
   | JsonSelectorCompare
+  | JsonSelectorArithmetic
+  | JsonSelectorUnaryArithmetic
   | JsonSelectorAnd
   | JsonSelectorOr
   | JsonSelectorTernary

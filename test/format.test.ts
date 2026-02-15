@@ -188,7 +188,145 @@ describe("formatJsonSelector", () => {
             },
           },
         }),
-      ).toBe("a == `1` && (b == `2` || c == `3`)");
+      ).toBe("a == 1 && (b == 2 || c == 3)");
+    });
+  });
+
+  describe("arithmetic operators", () => {
+    test.each<[string, JsonSelector, string]>([
+      [
+        "addition",
+        {
+          type: "arithmetic",
+          operator: "+",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        "a + b",
+      ],
+      [
+        "subtraction",
+        {
+          type: "arithmetic",
+          operator: "-",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        "a - b",
+      ],
+      [
+        "multiply",
+        {
+          type: "arithmetic",
+          operator: "*",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        "a * b",
+      ],
+      [
+        "divide",
+        {
+          type: "arithmetic",
+          operator: "/",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        "a / b",
+      ],
+      [
+        "modulo",
+        {
+          type: "arithmetic",
+          operator: "%",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        "a % b",
+      ],
+      [
+        "integer divide",
+        {
+          type: "arithmetic",
+          operator: "//",
+          lhs: { type: "identifier", id: "a" },
+          rhs: { type: "identifier", id: "b" },
+        },
+        "a // b",
+      ],
+    ])("formats %s", (_name, selector, expected) => {
+      expect(formatJsonSelector(selector)).toBe(expected);
+    });
+
+    test("formats unary arithmetic", () => {
+      expect(
+        formatJsonSelector({
+          type: "unaryArithmetic",
+          operator: "-",
+          expression: { type: "identifier", id: "a" },
+        }),
+      ).toBe("-a");
+      expect(
+        formatJsonSelector({
+          type: "unaryArithmetic",
+          operator: "+",
+          expression: { type: "identifier", id: "a" },
+        }),
+      ).toBe("+a");
+    });
+
+    test("formats precedence with parentheses", () => {
+      expect(
+        formatJsonSelector({
+          type: "arithmetic",
+          operator: "*",
+          lhs: {
+            type: "arithmetic",
+            operator: "+",
+            lhs: { type: "identifier", id: "a" },
+            rhs: { type: "identifier", id: "b" },
+          },
+          rhs: { type: "identifier", id: "c" },
+        }),
+      ).toBe("(a + b) * c");
+    });
+
+    test("omits unnecessary parentheses with precedence", () => {
+      expect(
+        formatJsonSelector({
+          type: "arithmetic",
+          operator: "+",
+          lhs: { type: "identifier", id: "a" },
+          rhs: {
+            type: "arithmetic",
+            operator: "*",
+            lhs: { type: "identifier", id: "b" },
+            rhs: { type: "identifier", id: "c" },
+          },
+        }),
+      ).toBe("a + b * c");
+    });
+
+    test.each([
+      "a + b",
+      "a - b",
+      "a * b",
+      "a / b",
+      "a % b",
+      "a // b",
+      "a + b * c",
+      "(a + b) * c",
+      "-a + b",
+      "+a * b",
+      "42",
+      "`42`",
+      "a × b",
+      "a ÷ b",
+      "a − b",
+    ])("round-trips parse -> format -> parse: %s", (expression) => {
+      const original = parseJsonSelector(expression);
+      const formatted = formatJsonSelector(original);
+      expect(parseJsonSelector(formatted)).toStrictEqual(original);
     });
   });
 
@@ -276,6 +414,30 @@ describe("formatJsonSelector", () => {
 
     test("formats bare null without backtickSyntax", () => {
       expect(formatJsonSelector({ type: "literal", value: null })).toBe("null");
+    });
+
+    test("formats bare number without backtickSyntax", () => {
+      expect(formatJsonSelector({ type: "literal", value: 42 })).toBe("42");
+    });
+
+    test("formats bare negative zero without backtickSyntax", () => {
+      expect(formatJsonSelector({ type: "literal", value: -0 })).toBe("-0");
+    });
+
+    test("falls back to backtick syntax for non-primitive bare literal", () => {
+      expect(formatJsonSelector({ type: "literal", value: [1, 2] })).toBe(
+        "`[1,2]`",
+      );
+    });
+
+    test("formats backtick number with backtickSyntax", () => {
+      expect(
+        formatJsonSelector({
+          type: "literal",
+          value: 42,
+          backtickSyntax: true,
+        }),
+      ).toBe("`42`");
     });
 
     test("formats backtick true with backtickSyntax", () => {

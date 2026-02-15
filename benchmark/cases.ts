@@ -82,6 +82,16 @@ const isolatedCases: BenchmarkCase[] = [
   { name: "logical: and", expression: "foo && bar" },
   { name: "logical: or", expression: "foo || bar" },
 
+  // Arithmetic
+  { name: "arithmetic: add", expression: "foo + bar" },
+  { name: "arithmetic: subtract", expression: "foo - bar" },
+  { name: "arithmetic: multiply", expression: "foo * bar" },
+  { name: "arithmetic: divide", expression: "foo / bar" },
+  { name: "arithmetic: modulo", expression: "foo % bar" },
+  { name: "arithmetic: int divide", expression: "foo // bar" },
+  { name: "arithmetic: unary minus", expression: "-foo" },
+  { name: "arithmetic: unicode multiply", expression: "foo × bar" },
+
   // Syntax features
   { name: "syntax: parentheses", expression: "(foo.bar)" },
   { name: "syntax: escaped quote", expression: '"foo\\"bar"' },
@@ -180,6 +190,10 @@ const realWorldCases: BenchmarkCase[] = [
     expression: "people[?age > `20`] | sort_by(@, &age)",
   },
   { name: "real: object projection", expression: "config.settings.*.value" },
+  {
+    name: "arithmetic: filter with multiplication",
+    expression: "items[?price * quantity > `100`]",
+  },
 ];
 
 // 4. Stress Test Benchmarks
@@ -228,6 +242,10 @@ const stressCases: BenchmarkCase[] = [
     expression:
       "data[*].{name: name, total: items[*].price} | sort_by(@, &total) | [0]",
   },
+  {
+    name: "arithmetic: chained mixed operators",
+    expression: "a * b + c // d - e % f",
+  },
 ];
 
 export function getAllCases(): {
@@ -259,6 +277,8 @@ export function getCompatibleCases(library: LibraryId): {
   // Filter out json-selector extensions based on library support:
   // - ID access syntax ['string'] - not supported by any JMESPath library
   // - Root node ($) - only supported by typescript-jmespath, not jmespath.js
+  // - Arithmetic expressions are supported by json-selector and typescript-jmespath,
+  //   but not jmespath.js
   const isCompatible = (c: BenchmarkCase) => {
     // ID access syntax not supported by any JMESPath library
     if (c.expression.includes("['")) {
@@ -266,6 +286,10 @@ export function getCompatibleCases(library: LibraryId): {
     }
     // Root node only supported by typescript-jmespath
     if (c.expression.includes("$") && library === "jmespath") {
+      return false;
+    }
+    // Arithmetic operators are not supported by jmespath.js
+    if (library === "jmespath" && c.name.startsWith("arithmetic:")) {
       return false;
     }
     return true;

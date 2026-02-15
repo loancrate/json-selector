@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a TypeScript library implementing LoanCrate JSON Selectors, based on a subset of JMESPath with extensions for ID-based selection and root-node expressions. The library provides parsing, evaluation, formatting, and read/write/delete accessors for JSON selector expressions.
+This is a TypeScript library implementing LoanCrate JSON Selectors. It fully implements original JMESPath, implements JMESPath Community features except `let` expressions, and adds two LoanCrate extensions (`['id']` indexing shorthand and bare numeric literals in expression position). The library provides parsing, evaluation, formatting, and read/write/delete accessors for JSON selector expressions.
 
 ## Development Commands
 
@@ -52,13 +52,17 @@ npm test                # Run all tests with coverage
 npm run test:ci         # Run tests in CI mode (sequential)
 ```
 
-Tests are in the `test/` directory using Jest. To run a single test file:
+Tests are in the `test/` directory using Jest. **All source files must maintain 100% code coverage.** Add tests for any new or changed code paths before committing. To run a single test file:
 
 ```bash
 npx jest test/parse.test.ts
 ```
 
-**JMESPath Compliance**: All JMESPath compliance tests pass.
+**Standards coverage**:
+
+- **Original JMESPath**: fully supported (all `jmespath.test` compliance tests pass).
+- **JMESPath Community Edition**: supported except `let` expressions.
+- **LoanCrate extensions**: ID-based index shorthand and bare numeric literals in expression position.
 
 **Supported Features**:
 
@@ -67,17 +71,17 @@ npx jest test/parse.test.ts
 - **Multi-select hashes**: `{a: foo, b: bar}` - creating new objects from selections
 - **Object projections**: `.*` - wildcard over object keys (projects object values)
 - **Expression references**: `&expr` - for sort_by, max_by, min_by, group_by, map
+- **Arithmetic expressions**: `+`, `-`, `*`, `/`, `%`, `//` plus Unicode `×`, `÷`, `−`
 
 **Extensions** (LoanCrate-specific):
 
-- **Root reference**: `$` - reference to root context
 - **ID-based access**: `x['id']` - equivalent to `x[?id == 'id'] | [0]`
+- **Bare numeric literals in expression position**: supports forms like `a-1`, `-1`, and numeric comparisons without backticks (for example `foo[?price > 0]`)
 
 **Not Currently Supported**:
 
 These JMESPath Community features are not yet supported:
 
-- Arithmetic expressions (`+`, `-`, `*`, `/`, `%`, `//`)
 - Let expressions (`let $var = expr in expression`)
 
 ### Linting
@@ -86,6 +90,8 @@ These JMESPath Community features are not yet supported:
 npm run lint            # Run ESLint
 npm run lint:ci         # Run ESLint with JUnit output for CI
 ```
+
+**CRITICAL RULE**: Always run `npm run lint` after making changes, in addition to tests. Fix all errors before committing.
 
 **CRITICAL RULE**: Avoid suppressing ESLint errors with `eslint-disable` comments unless absolutely necessary. When you must suppress an error (e.g., for safe type assertions the type system cannot verify), add a comment explaining why it's safe.
 
@@ -106,15 +112,15 @@ npm run benchmark -- --help                             # Show usage
 
 The benchmark tool supports comparing parsing performance across three JMESPath implementations:
 
-1. **json-selector** (default) - Custom parser with json-selector extensions (81 test cases)
-2. **jmespath** - Original jmespath.js library (78 test cases, excludes `$` root and `['id']` syntax)
-3. **typescript-jmespath** - @jmespath-community/jmespath fork (79 test cases, excludes `['id']` syntax)
+1. **json-selector** (default) - Custom parser with json-selector extensions
+2. **jmespath** - Original jmespath.js library (excludes `$` root, `['id']` syntax, and arithmetic expressions)
+3. **typescript-jmespath** - @jmespath-community/jmespath fork (excludes `['id']` syntax)
 
 All libraries use their `compile()` function for parse-only benchmarking, ensuring fair comparison.
 
 **Test Coverage**
 
-Benchmarks test parsing performance across 81 test cases including:
+Benchmarks test parsing performance across a broad case suite including:
 
 - Isolated node types (primitives, access patterns, collection operations, logical operators)
 - Complexity scaling (field depth, pipe chains, projections, logical chains)
@@ -144,13 +150,13 @@ Benchmark implementation is modular:
 - Custom hand-written lexer for tokenization with keyword handling
 - Hand-written Pratt parser for expression parsing
 - Parses selector strings into AST nodes
-- Handles operator precedence (pipe → or → and → compare → not → flatten → filter → star/slice → index/ID → member access)
-- See `PRATT_ANALYSIS.md` for detailed grammar analysis
+- Handles operator precedence (pipe → ternary → or → and → compare → add/subtract → multiply/divide/modulo/int-divide → not → flatten → filter → star/slice → index/ID → member access)
+- Lexer always tokenizes `-` as an operator; parser resolves subtraction, unary sign folding on numeric literals, and negative index/slice bounds
 
 **AST (`src/ast.ts`)**
 
 - TypeScript type definitions for all selector node types
-- 21 node types: current, root, literal, identifier, fieldAccess, indexAccess, idAccess, project, filter, slice, flatten, not, compare, and, or, pipe, functionCall, expressionRef, multiSelectList, multiSelectHash, objectProject
+- 24 node types: current, root, literal, identifier, fieldAccess, indexAccess, idAccess, project, filter, slice, flatten, not, compare, arithmetic, unaryArithmetic, and, or, ternary, pipe, functionCall, expressionRef, multiSelectList, multiSelectHash, objectProject
 - Discriminated union type `JsonSelector` for type-safe pattern matching
 
 **Visitor Pattern (`src/visitor.ts`)**
@@ -177,6 +183,8 @@ Benchmark implementation is modular:
 
 - `formatJsonSelector()`: converts AST back to selector string
 - Uses visitor pattern to reconstruct expression syntax
+- Round-trip invariant: `parseJsonSelector(formatJsonSelector(ast))` should preserve AST shape and literal syntax hints
+- `backtickSyntax` must only be set when the source used backtick literal syntax; bare numeric literals must remain bare on format (for example `42` stays `42`, while `` `42` `` stays `` `42` ``)
 
 **Functions (`src/functions/`)**
 
@@ -194,9 +202,24 @@ Benchmark implementation is modular:
 - Exports all public functions and types
 - Main entry points: `parseJsonSelector()`, `evaluateJsonSelector()`, `accessWithJsonSelector()`, `formatJsonSelector()`
 
-### Key Extension: ID Access
+### Engineering Guardrails
 
-The library extends JMESPath with ID-based array access: `x['y']` is equivalent to `x[?id == 'y'] | [0]` in standard JMESPath. This allows selecting objects from arrays by their `id` property using string literals instead of numeric indices.
+- Keep lexer and parser responsibilities separated: prefer context-free tokenization in the lexer, and resolve context-sensitive meaning in the parser (for example unary vs binary `-`, negative index/slice bounds).
+- Treat `backtickSyntax` as a source-syntax hint only: set it only for literals that were written with backticks.
+- Preserve syntax roundtrips:
+  - `parseJsonSelector(formatJsonSelector(ast))` should preserve AST shape and syntax hints.
+  - `formatJsonSelector(parseJsonSelector(expr))` should preserve user-facing literal syntax where representable (for example `42` remains `42`, while `` `42` `` remains `` `42` ``).
+- Optimize only with evidence: benchmark before and after parser/lexer micro-optimizations; if there is no clear win, prefer simpler and more readable code.
+- Keep test intent clear: `test/jmespath/*` is for official compliance suites only; product extensions and custom behavior belong in targeted unit tests (prefer `test.each` for case matrices).
+- Error messages should include actionable context for runtime type issues: operator, operand role (left/right/unary), and actual received type/value when feasible.
+- Keep standards coverage explicit and synchronized across docs: original JMESPath support, JMESPath Community support gap (`let`), and JSON Selector extensions.
+
+### Key Extensions
+
+The library adds two LoanCrate-specific extensions on top of JMESPath standards:
+
+1. **ID-based array access**: `x['y']` is equivalent to `x[?id == 'y'] | [0]` in standard JMESPath, allowing selection by `id` value.
+2. **Bare numeric literals in expression position**: supports forms like `a-1` and `foo[?price > 0]` in addition to backtick numeric literals.
 
 ### Accessor Architecture
 
