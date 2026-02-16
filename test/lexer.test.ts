@@ -60,6 +60,7 @@ describe("Lexer", () => {
       ["||", TokenType.OR, "||"],
       ["!", TokenType.NOT, "!"],
       ["!=", TokenType.NEQ, "!="],
+      ["=", TokenType.ASSIGN, "="],
       ["<", TokenType.LT, "<"],
       ["<=", TokenType.LTE, "<="],
       [">", TokenType.GT, ">"],
@@ -108,6 +109,13 @@ describe("Lexer", () => {
       expect(tokens("/ //")).toMatchObject([
         { type: TokenType.DIVIDE },
         { type: TokenType.INT_DIVIDE },
+      ]);
+    });
+
+    test("distinguishes = from ==", () => {
+      expect(tokens("= ==")).toMatchObject([
+        { type: TokenType.ASSIGN },
+        { type: TokenType.EQ },
       ]);
     });
   });
@@ -708,6 +716,28 @@ describe("Lexer", () => {
       const token = tokenize("isnull");
       expect(token.type).toBe(TokenType.IDENTIFIER);
     });
+
+    test("tokenizes variable reference", () => {
+      expect(tokenize("$foo")).toMatchObject({
+        type: TokenType.VARIABLE,
+        text: "$foo",
+        value: "foo",
+      });
+    });
+
+    test("tokenizes variable with underscore and digits", () => {
+      expect(tokenize("$foo_123")).toMatchObject({
+        type: TokenType.VARIABLE,
+        value: "foo_123",
+      });
+    });
+
+    test("$ followed by non-identifier stays root token", () => {
+      expect(tokens("$1")).toMatchObject([
+        { type: TokenType.DOLLAR, text: "$" },
+        { type: TokenType.NUMBER, text: "1", value: 1 },
+      ]);
+    });
   });
 
   describe("whitespace", () => {
@@ -758,17 +788,6 @@ describe("Lexer", () => {
         expression: "#",
         offset: 0,
         character: "#",
-      });
-    });
-
-    test("throws on single equals", () => {
-      const error = catchError(() => tokenize("="));
-      expect(error).toMatchObject({
-        name: "UnexpectedCharacterError",
-        expression: "=",
-        offset: 0,
-        character: "=",
-        hint: "expected '==' but got '='",
       });
     });
 

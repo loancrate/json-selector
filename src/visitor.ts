@@ -12,6 +12,7 @@ import {
   JsonSelectorIdAccess,
   JsonSelectorIdentifier,
   JsonSelectorIndexAccess,
+  JsonSelectorLet,
   JsonSelectorLiteral,
   JsonSelectorMultiSelectHash,
   JsonSelectorMultiSelectList,
@@ -24,6 +25,7 @@ import {
   JsonSelectorSlice,
   JsonSelectorTernary,
   JsonSelectorUnaryArithmetic,
+  JsonSelectorVariableRef,
 } from "./ast";
 
 export interface Visitor<R, C> {
@@ -48,6 +50,8 @@ export interface Visitor<R, C> {
   pipe(node: JsonSelectorPipe, context: C): R;
   functionCall(node: JsonSelectorFunctionCall, context: C): R;
   expressionRef(node: JsonSelectorExpressionRef, context: C): R;
+  variableRef(node: JsonSelectorVariableRef, context: C): R;
+  let(node: JsonSelectorLet, context: C): R;
   multiSelectList(node: JsonSelectorMultiSelectList, context: C): R;
   multiSelectHash(node: JsonSelectorMultiSelectHash, context: C): R;
   objectProject(node: JsonSelectorObjectProject, context: C): R;
@@ -101,6 +105,10 @@ export function visitJsonSelector<R, C>(
       return visitor.functionCall(selector, context);
     case "expressionRef":
       return visitor.expressionRef(selector, context);
+    case "variableRef":
+      return visitor.variableRef(selector, context);
+    case "let":
+      return visitor.let(selector, context);
     case "multiSelectList":
       return visitor.multiSelectList(selector, context);
     case "multiSelectHash":

@@ -54,9 +54,13 @@ export const enum TokenType {
   NULL,
   TRUE,
   FALSE,
+
+  // Let expressions
+  VARIABLE,
+  ASSIGN,
 }
 
-export const TOKEN_LIMIT = TokenType.FALSE + 1;
+export const TOKEN_LIMIT = TokenType.ASSIGN + 1;
 
 // Base fields shared by all tokens
 interface TokenBase {
@@ -67,7 +71,8 @@ type StringTokenTypes =
   | TokenType.IDENTIFIER
   | TokenType.QUOTED_STRING
   | TokenType.RAW_STRING
-  | TokenType.BACKTICK_LITERAL;
+  | TokenType.BACKTICK_LITERAL
+  | TokenType.VARIABLE;
 
 // String-valued tokens
 export interface StringToken extends TokenBase {
@@ -184,6 +189,8 @@ const TOKEN_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.NULL]: "'null'",
   [TokenType.TRUE]: "'true'",
   [TokenType.FALSE]: "'false'",
+  [TokenType.VARIABLE]: "variable",
+  [TokenType.ASSIGN]: "'='",
 };
 
 export function describeTokenType(type: TokenType): string {

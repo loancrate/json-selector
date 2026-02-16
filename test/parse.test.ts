@@ -329,7 +329,7 @@ describe("parseJsonSelector", () => {
 
     test("complex filter with projection", () => {
       expect(
-        parseJsonSelector("foo[].bar[?baz.kind == `primary`][].baz | [0]"),
+        parseJsonSelector('foo[].bar[?baz.kind == `"primary"`][].baz | [0]'),
       ).toStrictEqual<JsonSelector>({
         type: "pipe",
         lhs: {
@@ -638,8 +638,19 @@ describe("parseJsonSelector", () => {
       });
     });
 
-    test("backtick invalid JSON falls back to string", () => {
-      expect(parseJsonSelector("`invalid`")).toStrictEqual<JsonSelector>({
+    test("backtick invalid JSON throws syntax by default", () => {
+      const error = catchError(() => parseJsonSelector("`invalid`"));
+      expect(error).toMatchObject({
+        name: "InvalidTokenError",
+        expression: "`invalid`",
+        tokenKind: "JSON literal",
+      });
+    });
+
+    test("backtick invalid JSON falls back to string in legacy mode", () => {
+      expect(
+        parseJsonSelector("`invalid`", { legacyLiterals: true }),
+      ).toStrictEqual<JsonSelector>({
         type: "literal",
         value: "invalid",
         backtickSyntax: true,
@@ -1450,6 +1461,104 @@ describe("parseJsonSelector", () => {
       const result = parseJsonSelector("foo.*.*");
       assert(result.type === "objectProject");
       expect(result.projection?.type).toBe("objectProject");
+    });
+  });
+
+  describe("let expressions", () => {
+    test("parses basic let binding and variable reference", () => {
+      expect(
+        parseJsonSelector("let $x = foo in $x"),
+      ).toStrictEqual<JsonSelector>({
+        type: "let",
+        bindings: [{ name: "x", value: { type: "identifier", id: "foo" } }],
+        expression: { type: "variableRef", name: "x" },
+      });
+    });
+
+    test("parses multiple bindings", () => {
+      expect(
+        parseJsonSelector("let $x = a, $y = b in [$x, $y]"),
+      ).toStrictEqual<JsonSelector>({
+        type: "let",
+        bindings: [
+          { name: "x", value: { type: "identifier", id: "a" } },
+          { name: "y", value: { type: "identifier", id: "b" } },
+        ],
+        expression: {
+          type: "multiSelectList",
+          expressions: [
+            { type: "variableRef", name: "x" },
+            { type: "variableRef", name: "y" },
+          ],
+        },
+      });
+    });
+
+    test("parses nested let", () => {
+      expect(
+        parseJsonSelector("let $x = a in let $y = b in [$x, $y]"),
+      ).toStrictEqual<JsonSelector>({
+        type: "let",
+        bindings: [{ name: "x", value: { type: "identifier", id: "a" } }],
+        expression: {
+          type: "let",
+          bindings: [{ name: "y", value: { type: "identifier", id: "b" } }],
+          expression: {
+            type: "multiSelectList",
+            expressions: [
+              { type: "variableRef", name: "x" },
+              { type: "variableRef", name: "y" },
+            ],
+          },
+        },
+      });
+    });
+
+    test("treats let and in as normal identifiers when not in let syntax", () => {
+      expect(parseJsonSelector("let")).toStrictEqual<JsonSelector>({
+        type: "identifier",
+        id: "let",
+      });
+      expect(parseJsonSelector("in")).toStrictEqual<JsonSelector>({
+        type: "identifier",
+        id: "in",
+      });
+      expect(parseJsonSelector("foo.let")).toStrictEqual<JsonSelector>({
+        type: "fieldAccess",
+        expression: { type: "identifier", id: "foo" },
+        field: "let",
+      });
+    });
+
+    test("parses standalone variable reference", () => {
+      expect(parseJsonSelector("$foo")).toStrictEqual<JsonSelector>({
+        type: "variableRef",
+        name: "foo",
+      });
+    });
+
+    test("parses standalone root token", () => {
+      expect(parseJsonSelector("$")).toStrictEqual<JsonSelector>({
+        type: "root",
+      });
+    });
+
+    test("rejects variable refs in subexpression rhs", () => {
+      const error = catchError(() => parseJsonSelector("foo.$bar"));
+      expect(error).toMatchObject({
+        name: "UnexpectedTokenError",
+        expression: "foo.$bar",
+      });
+    });
+
+    test("requires contextual in keyword after bindings", () => {
+      const error = catchError(() => parseJsonSelector("let $x = foo $x"));
+      expect(error).toMatchObject({
+        name: "UnexpectedTokenError",
+        expression: "let $x = foo $x",
+        expected: "'in'",
+        context: "after let bindings",
+      });
     });
   });
 });

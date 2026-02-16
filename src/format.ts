@@ -12,7 +12,8 @@ const PRECEDENCE_AND = 6;
 const PRECEDENCE_OR = 7;
 const PRECEDENCE_TERNARY = 8;
 const PRECEDENCE_PIPE = 9;
-const PRECEDENCE_MAX = 10;
+const PRECEDENCE_LET = 10;
+const PRECEDENCE_MAX = 11;
 
 const operatorPrecedence: { [type in JsonSelectorNodeType]?: number } = {
   fieldAccess: PRECEDENCE_ACCESS,
@@ -33,6 +34,7 @@ const operatorPrecedence: { [type in JsonSelectorNodeType]?: number } = {
   or: PRECEDENCE_OR,
   ternary: PRECEDENCE_TERNARY,
   pipe: PRECEDENCE_PIPE,
+  let: PRECEDENCE_LET,
 };
 
 function getArithmeticPrecedence(operator: string) {
@@ -209,6 +211,15 @@ function format(selector: JsonSelector): string {
       },
       expressionRef({ expression }) {
         return `&${formatSubexpression(expression, PRECEDENCE_ACCESS)}`;
+      },
+      variableRef({ name }) {
+        return `$${name}`;
+      },
+      let({ bindings, expression }) {
+        const bindingStrs = bindings
+          .map(({ name, value }) => `$${name} = ${format(value)}`)
+          .join(", ");
+        return `let ${bindingStrs} in ${format(expression)}`;
       },
       multiSelectList({ expressions }) {
         const items = expressions.map((expr) => format(expr)).join(", ");
