@@ -1,16 +1,11 @@
 import { ArgumentSignature } from "../../src";
+import { InvalidArgumentTypeError, InvalidArityError } from "../../src/errors";
 import {
   ANY_TYPE,
   NUMBER_TYPE,
   STRING_TYPE,
 } from "../../src/functions/datatype";
-import {
-  arg,
-  InvalidArgumentTypeError,
-  InvalidArityError,
-  validateArguments,
-  varArg,
-} from "../../src/functions/validation";
+import { arg, validateArguments, varArg } from "../../src/functions/validation";
 
 describe("validation", () => {
   test("empty signature accepts zero arguments", () => {

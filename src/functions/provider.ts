@@ -1,6 +1,7 @@
 import { makeExpressionRef } from "./datatype";
 import { FunctionArg, FunctionCallArgs, FunctionDefinition } from "./types";
-import { UnknownFunctionError, validateArguments } from "./validation";
+import { UnknownFunctionError } from "../errors";
+import { validateArguments } from "./validation";
 
 /** Immutable lookup table mapping function names to their {@link FunctionDefinition}s. */
 export type FunctionProvider = ReadonlyMap<string, FunctionDefinition>;

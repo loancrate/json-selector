@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JsonSelector } from "../src/ast";
 import { parseJsonSelector } from "../src/parse";
+import { catchError } from "./helpers";
 
 describe("parseJsonSelector", () => {
   describe("basic expressions", () => {
@@ -1195,88 +1196,129 @@ describe("parseJsonSelector", () => {
   });
 
   describe("error handling", () => {
-    test("empty string throws", () => {
-      expect(() => parseJsonSelector("")).toThrow("Unexpected end of input");
-    });
-
-    test("trailing dot throws", () => {
-      expect(() => parseJsonSelector("foo.")).toThrow(
-        "Expected identifier at position",
-      );
-    });
-
-    test("unclosed bracket throws", () => {
-      expect(() => parseJsonSelector("foo[")).toThrow(/Unexpected/);
-    });
-
-    test("unclosed filter throws", () => {
-      expect(() => parseJsonSelector("foo[?x")).toThrow(/Expected.*]/);
-    });
-
-    test("! in infix position throws", () => {
-      // Hits the default case in led() because ! is a prefix-only operator
-      expect(() => parseJsonSelector("foo !bar")).toThrow(
-        "Unexpected token at position",
-      );
-    });
-
-    test("unexpected character throws", () => {
-      expect(() => parseJsonSelector("#")).toThrow("Unexpected character");
-    });
-
-    test("unclosed paren throws", () => {
-      expect(() => parseJsonSelector("(foo")).toThrow(/Expected.*\)/);
-    });
-
-    test("unexpected token after foo[ throws", () => {
-      // foo[bar] where bar is an identifier - not a valid bracket expression
-      // Requires foo.[bar] syntax for multi-select list
-      expect(() => parseJsonSelector("foo[bar]")).toThrow(
-        "Unexpected token after '['",
-      );
-    });
-
-    test("trailing tokens throws", () => {
-      expect(() => parseJsonSelector("foo bar")).toThrow(
-        "Unexpected token at position",
-      );
-    });
-
-    test("unexpected ) at start throws (hits nud default case)", () => {
-      // ) in nud position - lexer produces RPAREN, parser doesn't handle it in nud()
-      expect(() => parseJsonSelector(")")).toThrow(
-        "Unexpected token at position",
-      );
-    });
-
-    test("unexpected ] at start throws", () => {
-      expect(() => parseJsonSelector("]")).toThrow(
-        "Unexpected token at position",
-      );
-    });
-
-    test("! after projection throws", () => {
-      // After foo[*], ! has high binding power but isn't a valid continuation token
-      // Falls through parseProjectionRHS, then hits the default case in led()
-      expect(() => parseJsonSelector("foo[*] !bar")).toThrow(
-        "Unexpected token at position",
-      );
-    });
-
-    test("object projection with non-continuation high-bp token", () => {
-      expect(() => parseJsonSelector("* !foo")).toThrow();
-    });
-
-    test("foo[-expr] throws (minus without number after expression)", () => {
-      expect(() => parseJsonSelector("foo[-bar]")).toThrow(
-        "Unexpected token after '['",
-      );
-    });
-
-    test("sign without number in slice throws", () => {
-      expect(() => parseJsonSelector("foo[:+]")).toThrow(
-        "Expected number at position",
-      );
+    test.each<[string, Record<string, string | number | undefined>]>([
+      ["", { name: "UnexpectedEndOfInputError", offset: 0 }],
+      [
+        "foo.",
+        {
+          name: "UnexpectedTokenError",
+          offset: 4,
+          token: "end of input",
+          expected: "identifier",
+        },
+      ],
+      [
+        "foo[",
+        {
+          name: "UnexpectedTokenError",
+          offset: 4,
+          token: "end of input",
+          expected: "number, ':', '*', or string",
+          context: "after '['",
+        },
+      ],
+      [
+        "foo[?x",
+        {
+          name: "UnexpectedTokenError",
+          offset: 6,
+          token: "end of input",
+          expected: "']'",
+        },
+      ],
+      ["foo !bar", { name: "UnexpectedTokenError", offset: 4, token: "!" }],
+      [
+        "#",
+        {
+          name: "UnexpectedCharacterError",
+          offset: 0,
+          character: "#",
+        },
+      ],
+      [
+        "(foo",
+        {
+          name: "UnexpectedTokenError",
+          offset: 4,
+          token: "end of input",
+          expected: "')'",
+        },
+      ],
+      [
+        "foo[bar]",
+        {
+          name: "UnexpectedTokenError",
+          offset: 4,
+          token: "bar",
+          expected: "number, ':', '*', or string",
+          context: "after '['",
+        },
+      ],
+      [
+        "foo bar",
+        {
+          name: "UnexpectedTokenError",
+          offset: 4,
+          token: "bar",
+          expected: "end of input",
+        },
+      ],
+      [
+        ")",
+        {
+          name: "UnexpectedTokenError",
+          offset: 0,
+          token: ")",
+          expected: "expression",
+        },
+      ],
+      [
+        "]",
+        {
+          name: "UnexpectedTokenError",
+          offset: 0,
+          token: "]",
+          expected: "expression",
+        },
+      ],
+      [
+        "foo[*] !bar",
+        {
+          name: "UnexpectedTokenError",
+          offset: 7,
+          token: "!",
+        },
+      ],
+      [
+        "* !foo",
+        {
+          name: "UnexpectedTokenError",
+          offset: 2,
+          token: "!",
+        },
+      ],
+      [
+        "foo[-bar]",
+        {
+          name: "UnexpectedTokenError",
+          offset: 5,
+          token: "bar",
+          expected: "number",
+          context: "after '[-'",
+        },
+      ],
+      [
+        "foo[:+]",
+        {
+          name: "UnexpectedTokenError",
+          offset: 6,
+          token: "]",
+          expected: "number",
+        },
+      ],
+    ])("error for %s", (input, expected) => {
+      const error = catchError(() => parseJsonSelector(input));
+      expect(error).toMatchObject({ ...expected, expression: input });
     });
   });
 

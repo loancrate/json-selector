@@ -1,72 +1,11 @@
 import { NonEmptyArray } from "../util";
+import {
+  InvalidArgumentTypeError,
+  InvalidArgumentValueError,
+  InvalidArityError,
+} from "../errors";
 import { DataType, formatType, getDataType, matchesType } from "./datatype";
 import { ArgumentSignature, FunctionArg } from "./types";
-
-/**
- * Base error class for all function-related errors.
- */
-export class FunctionError extends Error {
-  constructor(
-    public readonly functionName: string,
-    message: string,
-  ) {
-    super(`${functionName}(): ${message}`);
-    this.name = "FunctionError";
-  }
-}
-
-/**
- * Error thrown when an unknown function is called.
- */
-export class UnknownFunctionError extends FunctionError {
-  constructor(functionName: string) {
-    super(functionName, "unknown function");
-    this.name = "UnknownFunctionError";
-  }
-}
-
-/**
- * Error thrown when a function is called with the wrong number of arguments.
- */
-export class InvalidArityError extends FunctionError {
-  constructor(functionName: string, message: string) {
-    super(functionName, message);
-    this.name = "InvalidArityError";
-  }
-}
-
-/** Base error for argument-level validation failures, carrying both the function and argument names. */
-export class InvalidArgumentError extends FunctionError {
-  constructor(
-    functionName: string,
-    public readonly argumentName: string,
-    message: string,
-  ) {
-    super(functionName, message);
-    this.name = "InvalidArgumentError";
-  }
-}
-
-/**
- * Error thrown when a function argument has the wrong type.
- */
-export class InvalidArgumentTypeError extends InvalidArgumentError {
-  constructor(functionName: string, argumentName: string, message: string) {
-    super(functionName, argumentName, message);
-    this.name = "InvalidArgumentTypeError";
-  }
-}
-
-/**
- * Error thrown when a function argument has a valid type but an invalid value
- * (e.g. negative integer where non-negative is required, non-integer float, pad string length != 1).
- */
-export class InvalidArgumentValueError extends InvalidArgumentError {
-  constructor(functionName: string, argumentName: string, message: string) {
-    super(functionName, argumentName, message);
-    this.name = "InvalidArgumentValueError";
-  }
-}
 
 /**
  * Validate function arguments against a list of possible signatures.

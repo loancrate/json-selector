@@ -6,10 +6,14 @@ import {
   JsonSelectorCurrent,
   JsonSelectorUnaryArithmeticOperator,
 } from "./ast";
+import {
+  DivideByZeroError,
+  InvalidArgumentValueError,
+  NotANumberError,
+} from "./errors";
 import { type EvaluationContext } from "./functions";
 import { getBuiltinFunctionProvider } from "./functions/builtins";
 import { callFunction } from "./functions/provider";
-import { InvalidArgumentValueError } from "./functions/validation";
 import {
   findId,
   getField,
@@ -192,34 +196,16 @@ function evaluate(
   );
 }
 
-export class NotANumberError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NotANumberError";
+function ensureNumber(
+  value: unknown,
+  operand: "left operand" | "right operand" | "operand",
+  operator: string,
+): number {
+  if (value == null || typeof value !== "number") {
+    const actualType = describeValueType(value);
+    throw new NotANumberError(operator, operand, actualType);
   }
-
-  static expectedNumber(
-    operand: string,
-    value: unknown,
-    operator: JsonSelectorArithmeticOperator,
-  ): NotANumberError {
-    return new NotANumberError(
-      `not-a-number: expected number for ${operand} of '${operator}', got ${describeValueType(
-        value,
-      )}`,
-    );
-  }
-
-  static divisionByZero(
-    operator: "/" | "//",
-    divisor: number,
-  ): NotANumberError {
-    return new NotANumberError(
-      `not-a-number: division by zero for '${operator}' (right operand: ${String(
-        divisor,
-      )})`,
-    );
-  }
+  return value;
 }
 
 function describeValueType(value: unknown): string {
@@ -230,17 +216,6 @@ function describeValueType(value: unknown): string {
     return "array";
   }
   return typeof value;
-}
-
-function ensureNumber(
-  value: unknown,
-  operand: string,
-  operator: JsonSelectorArithmeticOperator,
-): number {
-  if (value == null || typeof value !== "number") {
-    throw NotANumberError.expectedNumber(operand, value, operator);
-  }
-  return value;
 }
 
 export function performArithmetic(
@@ -259,14 +234,14 @@ export function performArithmetic(
       return l * r;
     case "/":
       if (!r) {
-        throw NotANumberError.divisionByZero("/", r);
+        throw new DivideByZeroError("/", r);
       }
       return l / r;
     case "%":
       return l % r;
     case "//":
       if (!r) {
-        throw NotANumberError.divisionByZero("//", r);
+        throw new DivideByZeroError("//", r);
       }
       return Math.floor(l / r);
   }

@@ -1,5 +1,6 @@
 import { Lexer } from "../src/lexer";
 import { describeTokenType, Token, TokenType } from "../src/token";
+import { catchError } from "./helpers";
 
 /**
  * Collect all tokens from input (excluding EOF).
@@ -198,15 +199,25 @@ describe("Lexer", () => {
       });
 
       test("throws on unterminated raw string", () => {
-        expect(() => tokenize("'hello")).toThrow(
-          "Unterminated string at position 0: expected closing '",
-        );
+        const error = catchError(() => tokenize("'hello"));
+        expect(error).toMatchObject({
+          name: "UnterminatedTokenError",
+          expression: "'hello",
+          offset: 0,
+          tokenKind: "raw string",
+          expectedDelimiter: "'",
+        });
       });
 
       test("throws on unterminated raw string with escape at end", () => {
-        expect(() => tokenize("'hello\\'")).toThrow(
-          "Unterminated string at position 0: expected closing '",
-        );
+        const error = catchError(() => tokenize("'hello\\'"));
+        expect(error).toMatchObject({
+          name: "UnterminatedTokenError",
+          expression: "'hello\\'",
+          offset: 0,
+          tokenKind: "raw string",
+          expectedDelimiter: "'",
+        });
       });
     });
 
@@ -311,15 +322,25 @@ describe("Lexer", () => {
       });
 
       test("throws on invalid unicode escape - too short", () => {
-        expect(() => tokenize('"\\u00"')).toThrow(
-          "Invalid unicode escape at position 1",
-        );
+        const error = catchError(() => tokenize('"\\u00"'));
+        expect(error).toMatchObject({
+          name: "InvalidTokenError",
+          expression: '"\\u00"',
+          offset: 1,
+          tokenKind: "unicode escape",
+          detail: "expected 4 hexadecimal digits",
+        });
       });
 
       test("throws on invalid unicode escape - non-hex", () => {
-        expect(() => tokenize('"\\u00GH"')).toThrow(
-          "Invalid unicode escape at position 1",
-        );
+        const error = catchError(() => tokenize('"\\u00GH"'));
+        expect(error).toMatchObject({
+          name: "InvalidTokenError",
+          expression: '"\\u00GH"',
+          offset: 1,
+          tokenKind: "unicode escape",
+          detail: "expected 4 hexadecimal digits",
+        });
       });
 
       test("preserves unknown escape sequences", () => {
@@ -337,15 +358,25 @@ describe("Lexer", () => {
       });
 
       test("throws on unescaped backtick", () => {
-        expect(() => tokenize('"hello`world"')).toThrow(
-          "Unescaped backtick in string at position 6",
-        );
+        const error = catchError(() => tokenize('"hello`world"'));
+        expect(error).toMatchObject({
+          name: "InvalidTokenError",
+          expression: '"hello`world"',
+          offset: 6,
+          tokenKind: "backtick in string",
+          detail: "unescaped backtick",
+        });
       });
 
       test("throws on unterminated quoted string", () => {
-        expect(() => tokenize('"hello')).toThrow(
-          'Unterminated string at position 0: expected closing "',
-        );
+        const error = catchError(() => tokenize('"hello'));
+        expect(error).toMatchObject({
+          name: "UnterminatedTokenError",
+          expression: '"hello',
+          offset: 0,
+          tokenKind: "string",
+          expectedDelimiter: '"',
+        });
       });
     });
 
@@ -380,9 +411,14 @@ describe("Lexer", () => {
       });
 
       test("throws on unterminated backtick literal", () => {
-        expect(() => tokenize("`hello")).toThrow(
-          "Unterminated JSON literal at position 0: expected closing `",
-        );
+        const error = catchError(() => tokenize("`hello"));
+        expect(error).toMatchObject({
+          name: "UnterminatedTokenError",
+          expression: "`hello",
+          offset: 0,
+          tokenKind: "JSON literal",
+          expectedDelimiter: "`",
+        });
       });
     });
   });
@@ -490,19 +526,36 @@ describe("Lexer", () => {
     });
 
     test("throws on invalid exponent", () => {
-      expect(() => tokenize("1e")).toThrow(
-        "Invalid number at position 0: end of input",
-      );
+      const error = catchError(() => tokenize("1e"));
+      expect(error).toMatchObject({
+        name: "InvalidTokenError",
+        expression: "1e",
+        offset: 0,
+        tokenKind: "number",
+        detail: "invalid exponent: end of input",
+      });
     });
 
     test("throws on invalid exponent with sign", () => {
-      expect(() => tokenize("1e+")).toThrow(
-        "Invalid number at position 0: end of input",
-      );
+      const error = catchError(() => tokenize("1e+"));
+      expect(error).toMatchObject({
+        name: "InvalidTokenError",
+        expression: "1e+",
+        offset: 0,
+        tokenKind: "number",
+        detail: "invalid exponent: end of input",
+      });
     });
 
     test("throws on invalid exponent with non-digit", () => {
-      expect(() => tokenize("1ex")).toThrow("Invalid number at position 0: x");
+      const error = catchError(() => tokenize("1ex"));
+      expect(error).toMatchObject({
+        name: "InvalidTokenError",
+        expression: "1ex",
+        offset: 0,
+        tokenKind: "number",
+        detail: "invalid exponent: x",
+      });
     });
   });
 
@@ -699,15 +752,24 @@ describe("Lexer", () => {
 
   describe("errors", () => {
     test("throws on unexpected character", () => {
-      expect(() => tokenize("#")).toThrow(
-        "Unexpected character at position 0: #",
-      );
+      const error = catchError(() => tokenize("#"));
+      expect(error).toMatchObject({
+        name: "UnexpectedCharacterError",
+        expression: "#",
+        offset: 0,
+        character: "#",
+      });
     });
 
     test("throws on single equals", () => {
-      expect(() => tokenize("=")).toThrow(
-        "Unexpected character at position 0: expected '==' but got '='",
-      );
+      const error = catchError(() => tokenize("="));
+      expect(error).toMatchObject({
+        name: "UnexpectedCharacterError",
+        expression: "=",
+        offset: 0,
+        character: "=",
+        hint: "expected '==' but got '='",
+      });
     });
 
     test("parses single ampersand as AMPERSAND token", () => {
@@ -720,9 +782,13 @@ describe("Lexer", () => {
     });
 
     test("reports correct position for error", () => {
-      expect(() => tokens("foo #")).toThrow(
-        "Unexpected character at position 4: #",
-      );
+      const error = catchError(() => tokens("foo #"));
+      expect(error).toMatchObject({
+        name: "UnexpectedCharacterError",
+        expression: "foo #",
+        offset: 4,
+        character: "#",
+      });
     });
   });
 
@@ -764,9 +830,14 @@ describe("Lexer", () => {
 
       test("throws on non-matching token", () => {
         const lexer = new Lexer("foo");
-        expect(() => lexer.consume(TokenType.NUMBER)).toThrow(
-          "Expected number but got identifier at position 0",
-        );
+        const error = catchError(() => lexer.consume(TokenType.NUMBER));
+        expect(error).toMatchObject({
+          name: "UnexpectedTokenError",
+          expression: "foo",
+          offset: 0,
+          token: "foo",
+          expected: "number",
+        });
       });
     });
 

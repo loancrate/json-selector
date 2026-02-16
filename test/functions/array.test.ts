@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
+import { InvalidArgumentTypeError } from "../../src/errors";
 import { getBuiltinFunctionProvider } from "../../src/functions/builtins";
 import { makeExpressionRef } from "../../src/functions/datatype";
 import { FunctionProvider } from "../../src/functions/provider";
-import { InvalidArgumentTypeError } from "../../src/functions/validation";
 import { evaluate } from "../helpers";
 
 const provider: FunctionProvider = getBuiltinFunctionProvider();

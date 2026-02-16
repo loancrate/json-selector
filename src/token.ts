@@ -140,8 +140,10 @@ export type TokenTypeMap = {
             : SymbolToken;
 };
 
+export const EOF_DESCRIPTION = "end of input";
+
 const TOKEN_DESCRIPTIONS: Record<TokenType, string> = {
-  [TokenType.EOF]: "end of input",
+  [TokenType.EOF]: EOF_DESCRIPTION,
   [TokenType.LPAREN]: "'('",
   [TokenType.RPAREN]: "')'",
   [TokenType.LBRACKET]: "'['",

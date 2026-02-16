@@ -190,12 +190,21 @@ Benchmark implementation is modular:
 
 - `FunctionRegistry`: manages function registration and lookup
 - Type system with `DataType` discriminated union (`PrimitiveType`, `ArrayType`, `UnionType`) for argument validation
-- Strict type validation with error hierarchy: `FunctionError`, `InvalidArityError`, `InvalidArgumentTypeError`, `InvalidArgumentValueError`, `UnknownFunctionError`
+- Strict type validation with function errors rooted at `JsonSelectorRuntimeError` (`FunctionError`, `InvalidArityError`, `InvalidArgumentTypeError`, `InvalidArgumentValueError`, `UnknownFunctionError`)
 - Built-in functions organized in modules:
   - `builtins/type.ts`: `type()`
   - `builtins/string.ts`: `length()`, `reverse()`, `to_string()`, `starts_with()`, `join()`, etc.
   - `builtins/math.ts`: `abs()`, `ceil()`, `floor()`, `sum()`, `avg()`, `min()`, `max()`
   - `builtins/array.ts`: `sort()`, `sort_by()`, `keys()`, `values()`, `map()`, etc.
+
+**Error Handling (`src/errors.ts`)**
+
+- All library errors inherit from `JsonSelectorError`
+- Parse errors inherit from `JsonSelectorSyntaxError` and include structured fields `expression` and `offset`
+- Runtime/evaluation errors inherit from `JsonSelectorRuntimeError`
+- Type mismatch runtime errors inherit from `JsonSelectorTypeError` (for example `NotANumberError`, `DivideByZeroError`)
+- Function validation/call errors inherit from `FunctionError`, which inherits from `JsonSelectorRuntimeError`
+- Prefer the most specific error class (`UnexpectedCharacterError`, `UnexpectedTokenError`, `UnexpectedEndOfInputError`, etc.) and avoid throwing generic `Error`
 
 **Public API (`src/index.ts`)**
 
@@ -212,6 +221,8 @@ Benchmark implementation is modular:
 - Optimize only with evidence: benchmark before and after parser/lexer micro-optimizations; if there is no clear win, prefer simpler and more readable code.
 - Keep test intent clear: `test/jmespath/*` is for official compliance suites only; product extensions and custom behavior belong in targeted unit tests (prefer `test.each` for case matrices).
 - Error messages should include actionable context for runtime type issues: operator, operand role (left/right/unary), and actual received type/value when feasible.
+- All errors thrown by the library must extend `JsonSelectorError`. Parse errors must extend `JsonSelectorSyntaxError` and include `expression` and `offset`. Evaluation errors must extend `JsonSelectorRuntimeError`. Never throw generic `Error`.
+- Error tests should use `catchError()` + `toMatchObject` with the `name` field to verify error type and structured fields in a single assertion. Avoid separate `toThrow(Class)` and `toThrow("message")` calls for the same error.
 - Keep standards coverage explicit and synchronized across docs: original JMESPath support, JMESPath Community support gap (`let`), and JSON Selector extensions.
 
 ### Key Extensions
