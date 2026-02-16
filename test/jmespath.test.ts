@@ -6,6 +6,7 @@ import {
   InvalidArgumentTypeError,
   InvalidArgumentValueError,
   InvalidArityError,
+  JsonSelectorSyntaxError,
   parseJsonSelector,
   UnknownFunctionError,
 } from "../src";
@@ -16,6 +17,7 @@ const ERROR_TYPE_MAP: Record<string, new (...args: any[]) => Error> = {
   "invalid-value": InvalidArgumentValueError,
   "invalid-arity": InvalidArityError,
   "unknown-function": UnknownFunctionError,
+  syntax: JsonSelectorSyntaxError,
 };
 
 const include = new Set<string>();

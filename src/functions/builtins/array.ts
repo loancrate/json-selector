@@ -12,11 +12,10 @@ import {
 } from "../datatype";
 import { FunctionDefinition } from "../types";
 import {
-  arg,
   InvalidArgumentTypeError,
   InvalidArgumentValueError,
-  varArg,
-} from "../validation";
+} from "../../errors";
+import { arg, varArg } from "../validation";
 
 /** Registers all JMESPath array/object manipulation functions. */
 export function registerArrayFunctions(

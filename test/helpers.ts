@@ -5,3 +5,12 @@ import { parseJsonSelector } from "../src/parse";
 export function evaluate(expr: string, data: unknown): unknown {
   return evaluateJsonSelector(parseJsonSelector(expr), data);
 }
+
+export function catchError(fn: () => void): unknown {
+  try {
+    fn();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("Expected function to throw");
+}

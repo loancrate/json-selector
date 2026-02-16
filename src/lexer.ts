@@ -1,5 +1,12 @@
 import {
+  InvalidTokenError,
+  UnexpectedCharacterError,
+  UnexpectedTokenError,
+  UnterminatedTokenError,
+} from "./errors";
+import {
   describeTokenType,
+  EOF_DESCRIPTION,
   FalseToken,
   NullToken,
   NumberToken,
@@ -68,9 +75,12 @@ export class Lexer {
     const token = this.peek();
     if (token.type !== type) {
       const expected = describeTokenType(type);
-      const actual = describeTokenType(token.type);
-      throw new Error(
-        `Expected ${expected} but got ${actual} at position ${token.offset}`,
+      const actual = token.text || describeTokenType(token.type);
+      throw new UnexpectedTokenError(
+        this.input,
+        token.offset,
+        actual,
+        expected,
       );
     }
     this.advance();
@@ -213,9 +223,7 @@ export class Lexer {
       return this.scanIdentifier(start);
     }
 
-    throw new Error(
-      `Unexpected character at position ${start}: ${this.input[start]}`,
-    );
+    throw new UnexpectedCharacterError(this.input, start, this.input[start]);
   }
 
   /**
@@ -310,8 +318,11 @@ export class Lexer {
       this.pos++;
       return { type: TokenType.EQ, text: "==", offset: start };
     }
-    throw new Error(
-      `Unexpected character at position ${start}: expected '==' but got '='`,
+    throw new UnexpectedCharacterError(
+      this.input,
+      start,
+      "=",
+      "expected '==' but got '='",
     );
   }
 
@@ -371,9 +382,7 @@ export class Lexer {
     }
 
     if (endPos >= this.length) {
-      throw new Error(
-        `Unterminated string at position ${start}: expected closing '`,
-      );
+      throw new UnterminatedTokenError(this.input, start, "raw string", "'");
     }
 
     const text = this.input.slice(start, endPos + 1);
@@ -420,9 +429,7 @@ export class Lexer {
     }
 
     if (endPos >= this.length) {
-      throw new Error(
-        `Unterminated JSON literal at position ${start}: expected closing \``,
-      );
+      throw new UnterminatedTokenError(this.input, start, "JSON literal", "`");
     }
 
     const text = this.input.slice(start, endPos + 1);
@@ -462,8 +469,11 @@ export class Lexer {
             value += String.fromCharCode(parseInt(hex, 16));
             i += 6;
           } else {
-            throw new Error(
-              `Invalid unicode escape at position ${start + 1 + i}`,
+            throw new InvalidTokenError(
+              this.input,
+              start + 1 + i,
+              "unicode escape",
+              "expected 4 hexadecimal digits",
             );
           }
         } else if (next in ESCAPE_CHARS) {
@@ -497,7 +507,12 @@ export class Lexer {
       }
       if (ch === 96) {
         // unescaped backtick - not allowed in quoted strings
-        throw new Error(`Unescaped backtick in string at position ${pos}`);
+        throw new InvalidTokenError(
+          this.input,
+          pos,
+          "backtick in string",
+          "unescaped backtick",
+        );
       }
       if (ch === 92) {
         // backslash (escape)
@@ -506,9 +521,7 @@ export class Lexer {
         pos++;
       }
     }
-    throw new Error(
-      `Unterminated string at position ${this.pos - 1}: expected closing "`,
-    );
+    throw new UnterminatedTokenError(this.input, this.pos - 1, "string", '"');
   }
 
   /**
@@ -548,8 +561,13 @@ export class Lexer {
       }
       // Exponent digits
       if (!isDigit(ch)) {
-        const digit = this.input[this.pos] ?? "end of input";
-        throw new Error(`Invalid number at position ${start}: ${digit}`);
+        const digit = this.input[this.pos] ?? EOF_DESCRIPTION;
+        throw new InvalidTokenError(
+          this.input,
+          start,
+          "number",
+          `invalid exponent: ${digit}`,
+        );
       }
       while (isDigit(ch)) {
         ch = this.advanceCharCode();

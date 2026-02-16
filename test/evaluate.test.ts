@@ -1,10 +1,7 @@
-import {
-  evaluateJsonSelector,
-  NotANumberError,
-  project,
-} from "../src/evaluate";
+import { evaluateJsonSelector, project } from "../src/evaluate";
 import { getBuiltinFunctionProvider } from "../src/functions/builtins";
 import { parseJsonSelector } from "../src/parse";
+import { catchError } from "./helpers";
 
 describe("evaluate", () => {
   test("projection with nested filter", () => {
@@ -176,9 +173,13 @@ describe("evaluate", () => {
 
   test("slice throws for zero step on strings", () => {
     const selector = parseJsonSelector("s[8:2:0]");
-    expect(() => evaluateJsonSelector(selector, { s: "0123456789" })).toThrow(
-      "step cannot be 0",
+    const error = catchError(() =>
+      evaluateJsonSelector(selector, { s: "0123456789" }),
     );
+    expect(error).toMatchObject({
+      name: "InvalidArgumentValueError",
+      message: "slice(): step cannot be 0",
+    });
   });
 
   test("slice returns null for non-array/non-string values", () => {
@@ -234,53 +235,78 @@ describe("evaluate", () => {
       n: null,
     };
 
-    test.each(["a / b", "a // b", "a + s", "+s", "-n"])(
-      "throws NotANumberError: %s",
-      (expression) => {
-        expect(() =>
-          evaluateJsonSelector(
-            parseJsonSelector(expression),
-            arithmeticErrorContext,
-          ),
-        ).toThrow(NotANumberError);
+    test.each<[string, unknown, Record<string, string | number>]>([
+      [
+        "a / b",
+        arithmeticErrorContext,
+        {
+          name: "DivideByZeroError",
+          operator: "/",
+          operandRole: "right operand",
+          actualType: "number",
+          divisor: 0,
+        },
+      ],
+      [
+        "a // b",
+        arithmeticErrorContext,
+        {
+          name: "DivideByZeroError",
+          operator: "//",
+          operandRole: "right operand",
+          actualType: "number",
+          divisor: 0,
+        },
+      ],
+      [
+        "a + s",
+        arithmeticErrorContext,
+        {
+          name: "NotANumberError",
+          operator: "+",
+          operandRole: "right operand",
+          actualType: "string",
+        },
+      ],
+      [
+        "+s",
+        arithmeticErrorContext,
+        {
+          name: "NotANumberError",
+          operator: "+",
+          operandRole: "operand",
+          actualType: "string",
+        },
+      ],
+      [
+        "-n",
+        arithmeticErrorContext,
+        {
+          name: "NotANumberError",
+          operator: "-",
+          operandRole: "operand",
+          actualType: "null",
+        },
+      ],
+      [
+        "a + b",
+        { a: 1, b: [2, 3] },
+        {
+          name: "NotANumberError",
+          operator: "+",
+          operandRole: "right operand",
+          actualType: "array",
+        },
+      ],
+    ])(
+      "throws structured not-a-number error: %s",
+      (expression, context, expected) => {
+        const error = catchError(() =>
+          evaluateJsonSelector(parseJsonSelector(expression), context),
+        );
+        expect(error).toMatchObject(expected);
       },
     );
-
-    test("includes operand type for non-number input", () => {
-      expect(() =>
-        evaluateJsonSelector(
-          parseJsonSelector("a + s"),
-          arithmeticErrorContext,
-        ),
-      ).toThrow("right operand of '+'");
-      expect(() =>
-        evaluateJsonSelector(
-          parseJsonSelector("a + s"),
-          arithmeticErrorContext,
-        ),
-      ).toThrow("got string");
-    });
-
-    test("describes array type in arithmetic error", () => {
-      expect(() =>
-        evaluateJsonSelector(parseJsonSelector("a + b"), { a: 1, b: [2, 3] }),
-      ).toThrow("got array");
-    });
-
-    test("includes division-by-zero context", () => {
-      expect(() =>
-        evaluateJsonSelector(
-          parseJsonSelector("a / b"),
-          arithmeticErrorContext,
-        ),
-      ).toThrow("division by zero for '/'");
-      expect(() =>
-        evaluateJsonSelector(
-          parseJsonSelector("a // b"),
-          arithmeticErrorContext,
-        ),
-      ).toThrow("division by zero for '//'");
-    });
 
     test("modulo by zero produces NaN", () => {
       const result = evaluateJsonSelector(parseJsonSelector("`1` % `0`"), {});

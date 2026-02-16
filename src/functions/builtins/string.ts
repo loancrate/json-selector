@@ -9,9 +9,9 @@ import {
   unionOf,
 } from "../datatype";
 import { FunctionDefinition } from "../types";
+import { InvalidArgumentValueError } from "../../errors";
 import {
   arg,
-  InvalidArgumentValueError,
   optArg,
   requireInteger,
   requireNonNegativeInteger,

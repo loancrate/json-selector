@@ -6,8 +6,9 @@ import {
   JsonSelectorCurrent,
   JsonSelectorRoot,
 } from "./ast";
+import { UnexpectedEndOfInputError, UnexpectedTokenError } from "./errors";
 import { Lexer } from "./lexer";
-import { Token, TOKEN_LIMIT, TokenType } from "./token";
+import { EOF_DESCRIPTION, Token, TOKEN_LIMIT, TokenType } from "./token";
 
 // Pre-computed singleton AST nodes
 const CURRENT_NODE: Readonly<JsonSelectorCurrent> = Object.freeze({
@@ -90,9 +91,11 @@ const TOKEN_BP: number[] = (() => {
  * - led() for infix/postfix operators (with left context)
  */
 export class Parser {
+  private readonly input: string;
   private readonly lexer: Lexer;
 
   constructor(input: string) {
+    this.input = input;
     this.lexer = new Lexer(input);
   }
 
@@ -103,9 +106,7 @@ export class Parser {
     const result = this.expression(0);
     const token = this.lexer.peek();
     if (token.type !== TokenType.EOF) {
-      throw new Error(
-        `Unexpected token at position ${token.offset}: ${token.text}`,
-      );
+      throw this.unexpectedToken(token, EOF_DESCRIPTION);
     }
     return result;
   }
@@ -141,7 +142,7 @@ export class Parser {
   private nud(): JsonSelector {
     const token = this.lexer.peek();
     if (token.type === TokenType.EOF) {
-      throw new Error("Unexpected end of input");
+      throw new UnexpectedEndOfInputError(this.input);
     }
 
     switch (token.type) {
@@ -248,9 +249,7 @@ export class Parser {
       }
 
       default:
-        throw new Error(
-          `Unexpected token at position ${token.offset}: ${token.text}`,
-        );
+        throw this.unexpectedToken(token, "expression");
     }
   }
 
@@ -407,9 +406,7 @@ export class Parser {
         return this.parseCompare(left, ">=");
 
       default:
-        throw new Error(
-          `Unexpected token at position ${token.offset}: ${token.text}`,
-        );
+        throw this.unexpectedToken(token);
     }
   }
 
@@ -507,9 +504,7 @@ export class Parser {
         // We've already consumed *, so we need to build the expression from there
         if (left !== CURRENT_NODE) {
           // foo[*.something] is not valid - multi-select list after expression needs .[
-          throw new Error(
-            `Unexpected token after '[*' at position ${nextToken.offset}: ${nextToken.text}`,
-          );
+          throw this.unexpectedToken(nextToken, "']'", "after '[*'");
         }
 
         // Build the rest of the * expression and continue parsing multi-select list
@@ -552,9 +547,8 @@ export class Parser {
 
         // Root multi-select list can still start with unary minus (e.g. [-foo])
         if (left !== CURRENT_NODE) {
-          throw new Error(
-            `Unexpected token after '[' at position ${token.offset}: ${token.text}`,
-          );
+          const nextToken = this.lexer.peek();
+          throw this.unexpectedToken(nextToken, "number", "after '[-'");
         }
 
         return this.parseMultiSelectListFromBracket(
@@ -573,8 +567,10 @@ export class Parser {
         // Only valid at root level (left === CURRENT_NODE), not after foo[
         // Requires foo.[a, b] syntax, not foo[a, b]
         if (left !== CURRENT_NODE) {
-          throw new Error(
-            `Unexpected token after '[' at position ${token.offset}: ${token.text}`,
+          throw this.unexpectedToken(
+            token,
+            "number, ':', '*', or string",
+            "after '['",
           );
         }
 
@@ -722,9 +718,7 @@ export class Parser {
       const numberToken = this.lexer.tryConsume(TokenType.NUMBER);
       if (!numberToken) {
         const nextToken = this.lexer.peek();
-        throw new Error(
-          `Expected number at position ${nextToken.offset}: ${nextToken.text}`,
-        );
+        throw this.unexpectedToken(nextToken, "number");
       }
       return sign * numberToken.value;
     }
@@ -744,7 +738,7 @@ export class Parser {
     }
 
     const token = this.lexer.peek();
-    throw new Error(`Expected identifier at position ${token.offset}`);
+    throw this.unexpectedToken(token, "identifier");
   }
 
   /**
@@ -793,13 +787,16 @@ export class Parser {
    * Parse multi-select hash: {key: expr, key: expr, ...}
    */
   private parseMultiSelectHash(): JsonSelector {
-    const startToken = this.lexer.consume(TokenType.LBRACE);
+    this.lexer.consume(TokenType.LBRACE);
     const entries: Array<{ key: string; value: JsonSelector }> = [];
 
     // Empty multi-select hash {} is invalid
     if (this.lexer.peek().type === TokenType.RBRACE) {
-      throw new Error(
-        `Invalid empty multi-select hash at position ${startToken.offset}`,
+      const token = this.lexer.peek();
+      throw this.unexpectedToken(
+        token,
+        "key-value pair",
+        "in multi-select hash",
       );
     }
 
@@ -872,9 +869,7 @@ export class Parser {
       token.type === TokenType.COLON ||
       token.type === TokenType.RAW_STRING
     ) {
-      throw new Error(
-        `Unexpected token after '.[' at position ${token.offset}: ${token.text}`,
-      );
+      throw this.unexpectedToken(token, "expression or '*'", "after '.['");
     }
 
     // Multi-select list: [expr1, expr2, ...]
@@ -888,9 +883,7 @@ export class Parser {
         next.type === TokenType.COLON ||
         next.type === TokenType.RAW_STRING
       ) {
-        throw new Error(
-          `Unexpected token after '.[' at position ${next.offset}: ${next.text}`,
-        );
+        throw this.unexpectedToken(next, "expression", "after '.['");
       }
       expressions.push(this.expression(0));
     }
@@ -906,5 +899,19 @@ export class Parser {
       },
       dotSyntax: true,
     };
+  }
+
+  private unexpectedToken(
+    token: Token,
+    expected?: string,
+    context?: string,
+  ): UnexpectedTokenError {
+    return new UnexpectedTokenError(
+      this.input,
+      token.offset,
+      token.text || EOF_DESCRIPTION,
+      expected,
+      context,
+    );
   }
 }
