@@ -1,11 +1,11 @@
 import { isArray } from "../../util";
-import { FunctionDefinition } from "../types";
 import {
   NUMBER_ARRAY_TYPE,
   NUMBER_TYPE,
   STRING_ARRAY_TYPE,
   unionOf,
 } from "../datatype";
+import { FunctionDefinition } from "../types";
 import { arg } from "../validation";
 
 /** Registers all JMESPath numeric functions. */

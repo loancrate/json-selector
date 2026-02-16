@@ -2,6 +2,7 @@
 
 import { writeFileSync } from "fs";
 import { parseArgs } from "util";
+
 import { getCompatibleCases } from "./cases";
 import { compareRuns, loadBenchmarkRun, printComparison } from "./compare";
 import { categorizeResults, printAllResults, toJSON } from "./format";

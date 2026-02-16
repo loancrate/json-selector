@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+
 import { InvalidArgumentValueError } from "../../src/errors";
 import { getBuiltinFunctionProvider } from "../../src/functions/builtins";
 import { FunctionProvider } from "../../src/functions/provider";
@@ -25,6 +26,10 @@ describe("string functions", () => {
 
   test("length of object", () => {
     expect(evaluate("length(@)", { a: 1, b: 2 })).toBe(2);
+  });
+
+  test("length handles unpaired high surrogate as one code point", () => {
+    expect(evaluate("length(@)", "\ud800a")).toBe(2);
   });
 
   test("reverse of array", () => {
@@ -167,6 +172,10 @@ describe("string functions", () => {
     expect(evaluate("find_first(@, 'o', `0`, `1`)", "foobar")).toBeNull();
   });
 
+  test("find_first with negative end", () => {
+    expect(evaluate("find_first(@, 'o', `0`, `-2`)", "foobar")).toBe(1);
+  });
+
   test("find_last", () => {
     expect(evaluate("find_last(@, 'o')", "foobar")).toBe(2);
     expect(evaluate("find_last(@, 'xyz')", "foobar")).toBeNull();
@@ -174,6 +183,10 @@ describe("string functions", () => {
 
   test("find_last with start and end", () => {
     expect(evaluate("find_last(@, 'o', `0`, `2`)", "foobar")).toBe(1);
+  });
+
+  test("find_last with negative end", () => {
+    expect(evaluate("find_last(@, 'o', `0`, `-2`)", "foobar")).toBe(2);
   });
 
   test("find_first throws for non-integer start", () => {
@@ -252,6 +265,14 @@ describe("string functions", () => {
     expect(() => evaluate("split(@, ',', `-1`)", "a,b,c")).toThrow(
       InvalidArgumentValueError,
     );
+  });
+
+  test("split with empty delimiter and large count returns characters", () => {
+    expect(evaluate("split(@, '', `10`)", "abc")).toStrictEqual([
+      "a",
+      "b",
+      "c",
+    ]);
   });
 });
 

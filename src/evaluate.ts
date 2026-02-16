@@ -1,4 +1,5 @@
 import deepEqual from "fast-deep-equal";
+
 import {
   JsonSelector,
   JsonSelectorArithmeticOperator,
@@ -12,7 +13,7 @@ import {
   NotANumberError,
   UndefinedVariableError,
 } from "./errors";
-import { type EvaluationContext } from "./functions";
+import type { EvaluationContext } from "./evaluation-context";
 import { getBuiltinFunctionProvider } from "./functions/builtins";
 import { callFunction } from "./functions/provider";
 import {
@@ -33,7 +34,7 @@ function isPartialEvaluationContext(
     ("rootContext" in value ||
       "functionProvider" in value ||
       "bindings" in value ||
-      "legacyLiterals" in value)
+      "legacyNullPropagation" in value)
   );
 }
 
@@ -63,7 +64,7 @@ export function evaluateJsonSelector(
       functionProvider:
         evalCtxOrRoot.functionProvider ?? getBuiltinFunctionProvider(),
       bindings: evalCtxOrRoot.bindings,
-      legacyLiterals: evalCtxOrRoot.legacyLiterals,
+      legacyNullPropagation: evalCtxOrRoot.legacyNullPropagation,
     };
   } else {
     evalCtx = {
@@ -71,7 +72,7 @@ export function evaluateJsonSelector(
       functionProvider:
         options?.functionProvider ?? getBuiltinFunctionProvider(),
       bindings: options?.bindings,
-      legacyLiterals: options?.legacyLiterals,
+      legacyNullPropagation: options?.legacyNullPropagation,
     };
   }
   return evaluate(selector, context, evalCtx);
@@ -205,15 +206,21 @@ function evaluate(
         });
       },
       multiSelectList({ expressions }) {
-        if (context == null) {
+        if (evalCtx.legacyNullPropagation && context == null) {
           return null;
         }
+        // Default behavior follows JMESPath Community semantics:
+        // on null context, multi-select list still evaluates each expression
+        // against null (e.g. `null`|[@] => [null]).
         return expressions.map((expr) => evaluate(expr, context, evalCtx));
       },
       multiSelectHash({ entries }) {
-        if (context == null) {
+        if (evalCtx.legacyNullPropagation && context == null) {
           return null;
         }
+        // Default behavior follows JMESPath Community semantics:
+        // on null context, multi-select hash still evaluates each value
+        // against null (e.g. `null`|{foo: @} => {foo: null}).
         const result: Record<string, unknown> = {};
         for (const { key, value } of entries) {
           result[key] = evaluate(value, context, evalCtx);
@@ -301,12 +308,21 @@ export function project(
   value: unknown,
   projection: JsonSelector | undefined,
   evalCtx: EvaluationContext,
-): unknown[] | null;
+): unknown;
 export function project(
   value: unknown,
   projection: JsonSelector | undefined,
   evalCtx: EvaluationContext,
-): unknown[] | null {
+): unknown {
+  if (typeof value === "string") {
+    // Community behavior intentionally differs from legacy JMESPath:
+    // non-identity projection against a sliced string evaluates on the
+    // string directly (e.g. 'foo'[:].length(@) => 3), while identity
+    // wildcard projection over string (string[*]) still returns null.
+    return projection && !isIdentityProjection(projection)
+      ? evaluate(projection, value, evalCtx)
+      : null;
+  }
   if (!isArray(value)) {
     return null;
   }

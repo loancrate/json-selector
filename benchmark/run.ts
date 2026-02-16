@@ -1,4 +1,6 @@
 import { execSync } from "child_process";
+
+import type { ParseFn } from "./parsers";
 import type {
   BenchmarkCase,
   BenchmarkConfig,
@@ -6,7 +8,6 @@ import type {
   BenchmarkResult,
   LibraryId,
 } from "./types";
-import type { ParseFn } from "./parsers";
 
 export function calculateStdDev(times: number[], avg: number): number {
   const variance =

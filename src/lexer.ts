@@ -37,19 +37,26 @@ const ESCAPE_CHARS: Record<string, string> = {
   "`": "`",
 };
 
+export interface LexerOptions {
+  /** Enables legacy raw-string escapes (only \' is unescaped). */
+  legacyRawStringEscapes?: boolean;
+}
+
 /**
  * Hand-written lexer for JSON Selector expressions providing single token
  * lookahead.
  */
 export class Lexer {
-  private input: string;
-  private length: number;
+  private readonly input: string;
+  private readonly length: number;
+  private readonly legacyRawStringEscapes: boolean;
   private pos: number = 0;
   private current: Token;
 
-  constructor(input: string) {
+  constructor(input: string, options?: LexerOptions) {
     this.input = input;
     this.length = input.length;
+    this.legacyRawStringEscapes = options?.legacyRawStringEscapes === true;
     this.current = this.scanNext();
   }
 
@@ -356,7 +363,8 @@ export class Lexer {
 
   /**
    * Scan raw string: '...'
-   * Only handles \' escape
+   * Handles \' and \\ escapes by default.
+   * In legacy mode, only \' is unescaped.
    * Optimized to use slicing for long strings
    */
   private scanRawString(start: number): StringToken {
@@ -390,7 +398,9 @@ export class Lexer {
     let value = this.input.slice(startPos, endPos);
 
     if (hasEscape) {
-      value = value.replace(/\\'/g, "'");
+      value = this.legacyRawStringEscapes
+        ? value.replace(/\\'/g, "'")
+        : value.replace(/\\([\\'])/g, "$1");
     }
 
     this.pos = endPos + 1;

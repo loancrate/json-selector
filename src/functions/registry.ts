@@ -1,5 +1,5 @@
-import { FallbackMapView } from "./FallbackMapView";
 import { getBuiltinFunctionProvider } from "./builtins";
+import { FallbackMapView } from "./FallbackMapView";
 import { FunctionProvider } from "./provider";
 import { FunctionDefinition } from "./types";
 

@@ -2,8 +2,8 @@ import { evaluateJsonSelector } from "../../src/evaluate";
 import { FunctionRegistry } from "../../src/functions";
 import { getBuiltinFunctionProvider } from "../../src/functions/builtins";
 import { ANY_TYPE, NUMBER_TYPE } from "../../src/functions/datatype";
-import { parseJsonSelector } from "../../src/parse";
 import { arg } from "../../src/functions/validation";
+import { parseJsonSelector } from "../../src/parse";
 
 describe("FunctionRegistry", () => {
   test("register and call custom function", () => {

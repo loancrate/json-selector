@@ -1,4 +1,8 @@
 import { JsonSelector } from "../../ast";
+import {
+  InvalidArgumentTypeError,
+  InvalidArgumentValueError,
+} from "../../errors";
 import { isArray, isNonEmptyArray, isObject, NonEmptyArray } from "../../util";
 import {
   ANY_ARRAY_TYPE,
@@ -11,10 +15,6 @@ import {
   unionOf,
 } from "../datatype";
 import { FunctionDefinition } from "../types";
-import {
-  InvalidArgumentTypeError,
-  InvalidArgumentValueError,
-} from "../../errors";
 import { arg, varArg } from "../validation";
 
 /** Registers all JMESPath array/object manipulation functions. */
@@ -29,11 +29,22 @@ export function registerArrayFunctions(
     ],
     handler: ({ args }) => {
       if (isArray(args[0])) {
+        const arr = args[0];
+        if (!isNonEmptyArray(arr)) {
+          return [];
+        }
+
         // Signature ensures array is all numbers or all strings
         // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        const arr = [...args[0]] as (number | string)[];
-        arr.sort((a, b) => (a > b ? 1 : a < b ? -1 : 0));
-        return arr;
+        const copy = [...arr] as number[] | string[];
+
+        if (isStringKeyArray(copy)) {
+          copy.sort(compareCodePoints);
+          return copy;
+        }
+
+        copy.sort((a, b) => a - b);
+        return copy;
       }
       return [];
     },
@@ -55,6 +66,12 @@ export function registerArrayFunctions(
         const keys = evaluateExpressionKeys("sort_by", arr, expr, evaluate);
 
         // Schwartzian transform: evaluate keys once, sort by key
+        if (isStringKeyArray(keys)) {
+          const decorated = arr.map((v, i) => [v, keys[i]] as const);
+          decorated.sort((a, b) => compareCodePoints(a[1], b[1]));
+          return decorated.map((d) => d[0]);
+        }
+
         const decorated = arr.map((v, i) => [v, keys[i]] as const);
         decorated.sort((a, b) => (a[1] > b[1] ? 1 : a[1] < b[1] ? -1 : 0));
         return decorated.map((d) => d[0]);
@@ -274,6 +291,28 @@ export function registerArrayFunctions(
 }
 
 /**
+ * Compare two strings by their Unicode code points, per JMESPath spec.
+ * Returns a negative number if a < b, positive if a > b, or 0 if equal.
+ */
+function compareCodePoints(a: string, b: string): number {
+  let ai = 0;
+  let bi = 0;
+  while (ai < a.length && bi < b.length) {
+    // Safe: loop condition guarantees both indices are in range for codePointAt.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const acp = a.codePointAt(ai)!;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const bcp = b.codePointAt(bi)!;
+    if (acp !== bcp) {
+      return acp - bcp;
+    }
+    ai += acp > 0xffff ? 2 : 1;
+    bi += bcp > 0xffff ? 2 : 1;
+  }
+  return ai === a.length ? (bi === b.length ? 0 : -1) : 1;
+}
+
+/**
  * Evaluate an expression against each element and validate that all keys are
  * numbers or strings of the same type. Returns the collected keys.
  * Throws InvalidArgumentTypeError if not.
@@ -297,6 +336,10 @@ function evaluateExpressionKeys(
     "expref",
     `expression must evaluate to number or string, got ${keyType}`,
   );
+}
+
+function isStringKeyArray(keys: number[] | string[]): keys is string[] {
+  return typeof keys[0] === "string";
 }
 
 /**

@@ -12,8 +12,8 @@ import {
   project,
   slice,
 } from "./evaluate";
+import type { EvaluationContext } from "./evaluation-context";
 import { formatJsonSelector } from "./format";
-import { EvaluationContext } from "./functions";
 import { getBuiltinFunctionProvider } from "./functions/builtins";
 import {
   asArray,

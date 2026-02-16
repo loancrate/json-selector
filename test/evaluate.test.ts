@@ -1,6 +1,7 @@
 import { evaluateJsonSelector, project } from "../src/evaluate";
 import { getBuiltinFunctionProvider } from "../src/functions/builtins";
 import { parseJsonSelector } from "../src/parse";
+
 import { catchError } from "./helpers";
 
 describe("evaluate", () => {
@@ -70,14 +71,31 @@ describe("evaluate", () => {
     expect(evaluateJsonSelector(selector, { foo: "bar" })).toBeNull();
   });
 
-  test("multiSelectList returns null for null context", () => {
+  test("multiSelectList evaluates against null context", () => {
     const selector = parseJsonSelector("[a, b]");
-    expect(evaluateJsonSelector(selector, null)).toBeNull();
+    expect(evaluateJsonSelector(selector, null)).toStrictEqual([null, null]);
   });
 
-  test("multiSelectHash returns null for null context", () => {
+  test("multiSelectList returns null in legacy null-propagation mode", () => {
+    const selector = parseJsonSelector("[a, b]");
+    expect(
+      evaluateJsonSelector(selector, null, { legacyNullPropagation: true }),
+    ).toBeNull();
+  });
+
+  test("multiSelectHash evaluates against null context", () => {
     const selector = parseJsonSelector("{x: a, y: b}");
-    expect(evaluateJsonSelector(selector, null)).toBeNull();
+    expect(evaluateJsonSelector(selector, null)).toStrictEqual({
+      x: null,
+      y: null,
+    });
+  });
+
+  test("multiSelectHash returns null in legacy null-propagation mode", () => {
+    const selector = parseJsonSelector("{x: a, y: b}");
+    expect(
+      evaluateJsonSelector(selector, null, { legacyNullPropagation: true }),
+    ).toBeNull();
   });
 
   test("objectProject on non-object returns null", () => {
