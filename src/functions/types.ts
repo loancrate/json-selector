@@ -1,21 +1,8 @@
 import { JsonSelector } from "../ast";
+import type { EvaluationContext } from "../evaluation-context";
 import { NonEmptyArray } from "../util";
-import { DataType } from "./datatype";
-import type { FunctionProvider } from "./provider";
 
-/**
- * Immutable evaluation scope: the root document and function registry.
- */
-export type EvaluationContext = {
-  /** The root document (`$`). */
-  rootContext: unknown;
-  /** Function provider for built-in and custom functions. */
-  functionProvider: FunctionProvider;
-  /** Lexical-scope variable bindings (name without `$` -> value). */
-  bindings?: ReadonlyMap<string, unknown>;
-  /** Enables legacy backtick-literal fallback behavior (non-JSON content parsed as string). */
-  legacyLiterals?: boolean;
-};
+import { DataType } from "./datatype";
 
 /**
  * Common evaluation context shared by function call and handler bindings.

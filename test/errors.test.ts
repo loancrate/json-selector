@@ -12,6 +12,7 @@ import {
   UnexpectedTokenError,
   UnknownFunctionError,
 } from "../src";
+
 import { catchError } from "./helpers";
 
 describe("error hierarchy", () => {

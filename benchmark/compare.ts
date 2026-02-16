@@ -1,8 +1,9 @@
 /* eslint-disable no-console */
 
 import { readFileSync } from "fs";
-import type { BenchmarkRun, ComparisonResult } from "./types";
+
 import { formatMicroseconds } from "./format";
+import type { BenchmarkRun, ComparisonResult } from "./types";
 
 export function loadBenchmarkRun(path: string): BenchmarkRun {
   const content = readFileSync(path, "utf-8");

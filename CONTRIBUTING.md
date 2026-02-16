@@ -46,6 +46,7 @@ Thank you for your interest in contributing to json-selector! This document prov
   - `parser.ts` - Hand-written Pratt parser
   - `ast.ts` - AST node type definitions
   - `evaluate.ts` - Selector evaluation logic
+  - `evaluation-context.ts` - Shared evaluation context type and compatibility options
   - `access.ts` - Read/write/delete accessors
   - `format.ts` - AST formatting back to selector strings
   - `visitor.ts` - Visitor pattern for AST traversal
@@ -116,10 +117,10 @@ Thank you for your interest in contributing to json-selector! This document prov
 ### Testing
 
 - Write tests for all new functionality
-- Aim for high code coverage
+- Maintain 100% code coverage for statements, branches, functions, and lines
 - Use descriptive test names
 - Test edge cases and error conditions
-- Current test status: 593/690 JMESPath compliance tests passing (85.9%)
+- Keep standards fixtures passing: `test/jmespath/*` (core) and `test/jmespath-community/*` (community)
 
 ### Performance
 

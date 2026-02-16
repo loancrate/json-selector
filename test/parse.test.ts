@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+
 import { JsonSelector } from "../src/ast";
 import { parseJsonSelector } from "../src/parse";
+
 import { catchError } from "./helpers";
 
 describe("parseJsonSelector", () => {
@@ -579,6 +581,22 @@ describe("parseJsonSelector", () => {
       expect(parseJsonSelector("'hello'")).toStrictEqual<JsonSelector>({
         type: "literal",
         value: "hello",
+      });
+    });
+
+    test("raw string unescapes \\\\ by default", () => {
+      expect(parseJsonSelector(String.raw`'\\'`)).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: "\\",
+      });
+    });
+
+    test("raw string preserves \\\\ in legacyRawStringEscapes mode", () => {
+      expect(
+        parseJsonSelector(String.raw`'\\'`, { legacyRawStringEscapes: true }),
+      ).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: "\\\\",
       });
     });
 

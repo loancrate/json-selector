@@ -1,6 +1,8 @@
-import { parseJsonSelector } from "../src";
-import * as jmespath from "jmespath";
 import { compile as tsJmespathCompile } from "@jmespath-community/jmespath";
+import * as jmespath from "jmespath";
+
+import { parseJsonSelector } from "../src";
+
 import type { LibraryId } from "./types";
 
 // Extend jmespath types - @types/jmespath is incomplete

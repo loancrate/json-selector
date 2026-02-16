@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+
 import { InvalidArgumentTypeError } from "../../src/errors";
 import { getBuiltinFunctionProvider } from "../../src/functions/builtins";
 import { makeExpressionRef } from "../../src/functions/datatype";
@@ -24,8 +25,24 @@ describe("array functions", () => {
     expect(evaluate("sort(@)", [10, 3, 1, 2])).toStrictEqual([1, 2, 3, 10]);
   });
 
+  test("sort numbers with equal values", () => {
+    expect(evaluate("sort(@)", [2, 1, 2])).toStrictEqual([1, 2, 2]);
+  });
+
   test("sort strings", () => {
     expect(evaluate("sort(@)", ["c", "a", "b"])).toStrictEqual(["a", "b", "c"]);
+  });
+
+  test("sort strings with shared prefixes", () => {
+    expect(evaluate("sort(@)", ["ab", "a"])).toStrictEqual(["a", "ab"]);
+  });
+
+  test("sort strings with shared astral prefixes", () => {
+    expect(evaluate("sort(@)", ["𝌆b", "𝌆a"])).toStrictEqual(["𝌆a", "𝌆b"]);
+  });
+
+  test("sort strings with identical values", () => {
+    expect(evaluate("sort(@)", ["a", "a"])).toStrictEqual(["a", "a"]);
   });
 
   test("sort uses codepoint ordering (uppercase before lowercase)", () => {

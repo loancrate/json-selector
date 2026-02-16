@@ -1,3 +1,4 @@
+import { InvalidArgumentValueError } from "../../errors";
 import { isArray, isObject } from "../../util";
 import {
   ANY_ARRAY_TYPE,
@@ -9,7 +10,6 @@ import {
   unionOf,
 } from "../datatype";
 import { FunctionDefinition } from "../types";
-import { InvalidArgumentValueError } from "../../errors";
 import {
   arg,
   optArg,
@@ -29,7 +29,10 @@ export function registerStringFunctions(
     ],
     handler: ({ args }) => {
       const value = args[0];
-      if (typeof value === "string" || isArray(value)) {
+      if (typeof value === "string") {
+        return codePointLength(value);
+      }
+      if (isArray(value)) {
         return value.length;
       }
       if (isObject(value)) {
@@ -174,7 +177,9 @@ export function registerStringFunctions(
       const v = args[0];
       if (typeof v === "string") {
         const chars = typeof args[1] === "string" ? args[1] : "";
-        return chars ? trimChars(v, chars, true, true) : v.trim();
+        return chars
+          ? trimChars(v, chars, true, true)
+          : trimUnicodeWhitespace(v, true, true);
       }
       return "";
     },
@@ -188,7 +193,9 @@ export function registerStringFunctions(
       const v = args[0];
       if (typeof v === "string") {
         const chars = typeof args[1] === "string" ? args[1] : "";
-        return chars ? trimChars(v, chars, true, false) : v.trimStart();
+        return chars
+          ? trimChars(v, chars, true, false)
+          : trimUnicodeWhitespace(v, true, false);
       }
       return "";
     },
@@ -202,7 +209,9 @@ export function registerStringFunctions(
       const v = args[0];
       if (typeof v === "string") {
         const chars = typeof args[1] === "string" ? args[1] : "";
-        return chars ? trimChars(v, chars, false, true) : v.trimEnd();
+        return chars
+          ? trimChars(v, chars, false, true)
+          : trimUnicodeWhitespace(v, false, true);
       }
       return "";
     },
@@ -323,14 +332,23 @@ export function registerStringFunctions(
       const subject = args[0];
       const search = args[1];
       if (typeof subject === "string" && typeof search === "string") {
-        const start =
+        if (search === "") {
+          return null;
+        }
+        let start =
           typeof args[2] === "number"
             ? requireInteger("find_first", "start", args[2])
             : 0;
-        const end =
+        let end =
           typeof args[3] === "number"
             ? requireInteger("find_first", "end", args[3])
             : subject.length;
+        if (start < 0) {
+          start = Math.max(0, subject.length + start);
+        }
+        if (end < 0) {
+          end = Math.max(0, subject.length + end);
+        }
         const searchArea = subject.slice(start, end);
         const idx = searchArea.indexOf(search);
         return idx === -1 ? null : idx + start;
@@ -354,14 +372,23 @@ export function registerStringFunctions(
       const subject = args[0];
       const search = args[1];
       if (typeof subject === "string" && typeof search === "string") {
-        const start =
+        if (search === "") {
+          return null;
+        }
+        let start =
           typeof args[2] === "number"
             ? requireInteger("find_last", "start", args[2])
             : 0;
-        const end =
+        let end =
           typeof args[3] === "number"
             ? requireInteger("find_last", "end", args[3])
             : subject.length;
+        if (start < 0) {
+          start = Math.max(0, subject.length + start);
+        }
+        if (end < 0) {
+          end = Math.max(0, subject.length + end);
+        }
         const searchArea = subject.slice(start, end);
         const idx = searchArea.lastIndexOf(search);
         return idx === -1 ? null : idx + start;
@@ -369,6 +396,25 @@ export function registerStringFunctions(
       return null;
     },
   });
+}
+
+/**
+ * Count Unicode code points in a string (not UTF-16 code units).
+ * This manual scan is significantly faster than both Array.from(s).length
+ * and a for...of counter in local benchmarks.
+ */
+function codePointLength(s: string): number {
+  let count = 0;
+  for (let i = 0; i < s.length; i++, count++) {
+    const c = s.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+      const d = s.charCodeAt(i + 1);
+      if (d >= 0xdc00 && d <= 0xdfff) {
+        i++;
+      }
+    }
+  }
+  return count;
 }
 
 /**
@@ -382,6 +428,13 @@ function splitWithCount(
 ): string[] {
   if (count === 0) {
     return [subject];
+  }
+  if (delimiter === "") {
+    const chars = [...subject];
+    if (count >= chars.length) {
+      return chars;
+    }
+    return [...chars.slice(0, count), chars.slice(count).join("")];
   }
   const result: string[] = [];
   let start = 0;
@@ -420,4 +473,21 @@ function trimChars(
     }
   }
   return s.slice(start, end);
+}
+
+const TRIM_START_RE = /^[\s\u0085]+/;
+const TRIM_END_RE = /[\s\u0085]+$/;
+
+function trimUnicodeWhitespace(
+  s: string,
+  left: boolean,
+  right: boolean,
+): string {
+  if (left) {
+    s = s.replace(TRIM_START_RE, "");
+  }
+  if (right) {
+    s = s.replace(TRIM_END_RE, "");
+  }
+  return s;
 }

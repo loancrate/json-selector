@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+
 import { getBuiltinFunctionProvider } from "../../src/functions/builtins";
 import { FunctionProvider } from "../../src/functions/provider";
 import { evaluate } from "../helpers";

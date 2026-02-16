@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a TypeScript library implementing LoanCrate JSON Selectors. It fully implements original JMESPath, implements JMESPath Community features, and adds two LoanCrate extensions (`['id']` indexing shorthand and bare numeric literals in expression position). The library provides parsing, evaluation, formatting, and read/write/delete accessors for JSON selector expressions.
+This is a TypeScript library implementing LoanCrate JSON Selectors. It fully implements original JMESPath and JMESPath Community Edition, and adds two LoanCrate extensions (`['id']` indexing shorthand and bare numeric literals in expression position). The library provides parsing, evaluation, formatting, and read/write/delete accessors for JSON selector expressions.
 
 ## Development Commands
 
@@ -20,7 +20,7 @@ Cleans `dist/` and builds both UMD and ESM bundles using Rollup.
 
 The parser is implemented as a **hand-written Pratt parser** (precedence-climbing) with a **custom hand-written lexer**.
 
-**Status**: Full JMESPath compliance achieved.
+**Status**: Full JMESPath and JMESPath Community compliance achieved.
 
 **Implementation**: The parser uses Pratt parsing with binding power to handle operator precedence efficiently. The lexer uses numeric token types (const enum) and lookup tables for optimal performance.
 
@@ -29,7 +29,7 @@ The parser is implemented as a **hand-written Pratt parser** (precedence-climbin
 - Numeric const enum for token types (fast comparison)
 - O(1) character classification using Uint8Array lookup tables
 - Single-character token table for direct mapping
-- Manual string scanning (raw strings: `\'` escape only, quoted strings: full JSON escapes plus backtick)
+- Manual string scanning (raw strings: `\'` and `\\` unescaped by default, with legacy `\'`-only mode available; quoted strings: full JSON escapes plus backtick)
 - No regex for token matching - pure character-code scanning
 
 **Parser Key Components**:
@@ -68,7 +68,8 @@ npx jest test/parse.test.ts
 
 - `test/jmespath/*`: official `jmespath.test` fixtures.
 - `test/jmespath-community/*`: community deltas and additions.
-- Legacy literal fixtures (`test/jmespath-community/legacy/*`) run with `legacyLiterals` enabled in the compliance harness; other fixtures run in modern mode.
+- Core JMESPath fixtures (`test/jmespath/*`) run with compatibility options enabled: `legacyRawStringEscapes` (parser) and `legacyNullPropagation` (evaluation).
+- Legacy community literal fixtures (`test/jmespath-community/legacy/*`) run with `legacyLiterals` enabled; other community fixtures run in modern mode.
 
 **Supported Features**:
 
@@ -211,6 +212,7 @@ Benchmark implementation is modular:
 
 - Exports all public functions and types
 - Main entry points: `parseJsonSelector()`, `evaluateJsonSelector()`, `accessWithJsonSelector()`, `formatJsonSelector()`
+- Compatibility option types are public: `ParserOptions` (parse-time) and `EvaluationContext` (evaluation-time)
 
 ### Engineering Guardrails
 

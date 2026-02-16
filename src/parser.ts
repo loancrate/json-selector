@@ -1,4 +1,5 @@
 import { JsonValue } from "type-fest";
+
 import {
   JsonSelector,
   JsonSelectorArithmeticOperator,
@@ -21,11 +22,6 @@ const CURRENT_NODE: Readonly<JsonSelectorCurrent> = Object.freeze({
 const ROOT_NODE: Readonly<JsonSelectorRoot> = Object.freeze({
   type: "root",
 });
-
-export interface ParserOptions {
-  /** Enables legacy backtick-literal fallback behavior (`\`foo\`` -> `"foo"`). */
-  legacyLiterals?: boolean;
-}
 
 // Binding power constants (higher = tighter binding)
 const BP_PIPE = 1;
@@ -91,8 +87,15 @@ const TOKEN_BP: number[] = (() => {
   return bp;
 })();
 
+export interface ParserOptions {
+  /** Enables legacy backtick-literal fallback behavior (`\`foo\`` -> `"foo"`). */
+  legacyLiterals?: boolean;
+  /** Enables legacy raw-string escapes (only \' is unescaped). */
+  legacyRawStringEscapes?: boolean;
+}
+
 /**
- * Pratt Parser for JSON Selectors
+ * Hand-written parser for JSON Selectors.
  *
  * Uses precedence-climbing (Pratt parsing) with binding power (0-55 range) to handle
  * operator precedence efficiently. The parser uses two main methods:
@@ -106,7 +109,9 @@ export class Parser {
 
   constructor(input: string, options?: ParserOptions) {
     this.input = input;
-    this.lexer = new Lexer(input);
+    this.lexer = new Lexer(input, {
+      legacyRawStringEscapes: options?.legacyRawStringEscapes,
+    });
     this.legacyLiterals = options?.legacyLiterals === true;
   }
 

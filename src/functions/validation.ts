@@ -1,9 +1,10 @@
-import { NonEmptyArray } from "../util";
 import {
   InvalidArgumentTypeError,
   InvalidArgumentValueError,
   InvalidArityError,
 } from "../errors";
+import { NonEmptyArray } from "../util";
+
 import { DataType, formatType, getDataType, matchesType } from "./datatype";
 import { ArgumentSignature, FunctionArg } from "./types";
 

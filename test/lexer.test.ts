@@ -1,12 +1,13 @@
-import { Lexer } from "../src/lexer";
+import { Lexer, type LexerOptions } from "../src/lexer";
 import { describeTokenType, Token, TokenType } from "../src/token";
+
 import { catchError } from "./helpers";
 
 /**
  * Collect all tokens from input (excluding EOF).
  */
-function tokens(input: string): Token[] {
-  const lexer = new Lexer(input);
+function tokens(input: string, options?: LexerOptions): Token[] {
+  const lexer = new Lexer(input, options);
   const result: Token[] = [];
   let token = lexer.peek();
   while (token.type !== TokenType.EOF) {
@@ -19,8 +20,8 @@ function tokens(input: string): Token[] {
 /**
  * Get a single token from input (for simple value testing).
  */
-function tokenize(input: string): Token {
-  const lexer = new Lexer(input);
+function tokenize(input: string, options?: LexerOptions): Token {
+  const lexer = new Lexer(input, options);
   return lexer.peek();
 }
 
@@ -203,6 +204,22 @@ describe("Lexer", () => {
         expect(tokenize("''")).toMatchObject({
           type: TokenType.RAW_STRING,
           value: "",
+        });
+      });
+
+      test("unescapes \\\\ in raw strings by default", () => {
+        expect(tokenize(String.raw`'\\'`)).toMatchObject({
+          type: TokenType.RAW_STRING,
+          value: "\\",
+        });
+      });
+
+      test("keeps \\\\ in raw strings in legacyRawStringEscapes mode", () => {
+        expect(
+          tokenize(String.raw`'\\'`, { legacyRawStringEscapes: true }),
+        ).toMatchObject({
+          type: TokenType.RAW_STRING,
+          value: "\\\\",
         });
       });
 
