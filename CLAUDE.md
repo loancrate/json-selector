@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a TypeScript library implementing LoanCrate JSON Selectors. It fully implements original JMESPath, implements JMESPath Community features except `let` expressions, and adds two LoanCrate extensions (`['id']` indexing shorthand and bare numeric literals in expression position). The library provides parsing, evaluation, formatting, and read/write/delete accessors for JSON selector expressions.
+This is a TypeScript library implementing LoanCrate JSON Selectors. It fully implements original JMESPath, implements JMESPath Community features, and adds two LoanCrate extensions (`['id']` indexing shorthand and bare numeric literals in expression position). The library provides parsing, evaluation, formatting, and read/write/delete accessors for JSON selector expressions.
 
 ## Development Commands
 
@@ -60,9 +60,15 @@ npx jest test/parse.test.ts
 
 **Standards coverage**:
 
-- **Original JMESPath**: fully supported (all `jmespath.test` compliance tests pass).
-- **JMESPath Community Edition**: supported except `let` expressions.
+- **Original JMESPath**: fully supported (fixtures under `test/jmespath/`).
+- **JMESPath Community Edition**: fully supported (fixtures under `test/jmespath-community/`, including nested suites like `jep-12/` and `legacy/`).
 - **LoanCrate extensions**: ID-based index shorthand and bare numeric literals in expression position.
+
+**Compliance fixture split**:
+
+- `test/jmespath/*`: official `jmespath.test` fixtures.
+- `test/jmespath-community/*`: community deltas and additions.
+- Legacy literal fixtures (`test/jmespath-community/legacy/*`) run with `legacyLiterals` enabled in the compliance harness; other fixtures run in modern mode.
 
 **Supported Features**:
 
@@ -71,18 +77,13 @@ npx jest test/parse.test.ts
 - **Multi-select hashes**: `{a: foo, b: bar}` - creating new objects from selections
 - **Object projections**: `.*` - wildcard over object keys (projects object values)
 - **Expression references**: `&expr` - for sort_by, max_by, min_by, group_by, map
+- **Let expressions**: `let $var = expr in expression` with lexical scope
 - **Arithmetic expressions**: `+`, `-`, `*`, `/`, `%`, `//` plus Unicode `×`, `÷`, `−`
 
 **Extensions** (LoanCrate-specific):
 
 - **ID-based access**: `x['id']` - equivalent to `x[?id == 'id'] | [0]`
 - **Bare numeric literals in expression position**: supports forms like `a-1`, `-1`, and numeric comparisons without backticks (for example `foo[?price > 0]`)
-
-**Not Currently Supported**:
-
-These JMESPath Community features are not yet supported:
-
-- Let expressions (`let $var = expr in expression`)
 
 ### Linting
 
@@ -156,7 +157,7 @@ Benchmark implementation is modular:
 **AST (`src/ast.ts`)**
 
 - TypeScript type definitions for all selector node types
-- 24 node types: current, root, literal, identifier, fieldAccess, indexAccess, idAccess, project, filter, slice, flatten, not, compare, arithmetic, unaryArithmetic, and, or, ternary, pipe, functionCall, expressionRef, multiSelectList, multiSelectHash, objectProject
+- 26 node types: current, root, variableRef, literal, identifier, fieldAccess, indexAccess, idAccess, project, filter, slice, flatten, not, compare, arithmetic, unaryArithmetic, and, or, ternary, pipe, functionCall, expressionRef, let, multiSelectList, multiSelectHash, objectProject
 - Discriminated union type `JsonSelector` for type-safe pattern matching
 
 **Visitor Pattern (`src/visitor.ts`)**
@@ -219,11 +220,11 @@ Benchmark implementation is modular:
   - `parseJsonSelector(formatJsonSelector(ast))` should preserve AST shape and syntax hints.
   - `formatJsonSelector(parseJsonSelector(expr))` should preserve user-facing literal syntax where representable (for example `42` remains `42`, while `` `42` `` remains `` `42` ``).
 - Optimize only with evidence: benchmark before and after parser/lexer micro-optimizations; if there is no clear win, prefer simpler and more readable code.
-- Keep test intent clear: `test/jmespath/*` is for official compliance suites only; product extensions and custom behavior belong in targeted unit tests (prefer `test.each` for case matrices).
+- Keep test intent clear: `test/jmespath/*` is for official `jmespath.test` compliance, `test/jmespath-community/*` is for community compliance deltas, and product extensions/custom behavior belong in targeted unit tests (prefer `test.each` for case matrices).
 - Error messages should include actionable context for runtime type issues: operator, operand role (left/right/unary), and actual received type/value when feasible.
 - All errors thrown by the library must extend `JsonSelectorError`. Parse errors must extend `JsonSelectorSyntaxError` and include `expression` and `offset`. Evaluation errors must extend `JsonSelectorRuntimeError`. Never throw generic `Error`.
 - Error tests should use `catchError()` + `toMatchObject` with the `name` field to verify error type and structured fields in a single assertion. Avoid separate `toThrow(Class)` and `toThrow("message")` calls for the same error.
-- Keep standards coverage explicit and synchronized across docs: original JMESPath support, JMESPath Community support gap (`let`), and JSON Selector extensions.
+- Keep standards coverage explicit and synchronized across docs: original JMESPath support, JMESPath Community support, and JSON Selector extensions.
 
 ### Key Extensions
 

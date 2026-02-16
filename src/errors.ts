@@ -29,10 +29,9 @@ export class UnexpectedCharacterError extends JsonSelectorSyntaxError {
     expression: string,
     offset: number,
     public readonly character: string,
-    public readonly hint?: string,
   ) {
     super(
-      `Unexpected character at position ${offset}: ${hint ?? character}`,
+      `Unexpected character at position ${offset}: ${character}`,
       expression,
       offset,
     );
@@ -119,6 +118,15 @@ export class JsonSelectorRuntimeError extends JsonSelectorError {}
 export class JsonSelectorTypeError extends JsonSelectorRuntimeError {}
 
 /**
+ * Error thrown when reading an unbound lexical-scope variable.
+ */
+export class UndefinedVariableError extends JsonSelectorRuntimeError {
+  constructor(public readonly variableName: string) {
+    super(`Undefined variable: $${variableName}`);
+  }
+}
+
+/**
  * Error thrown when arithmetic requires a number but receives another type.
  */
 export class NotANumberError extends JsonSelectorTypeError {
@@ -130,7 +138,7 @@ export class NotANumberError extends JsonSelectorTypeError {
   ) {
     super(
       message ??
-        `not-a-number: expected number for ${operandRole} of '${operator}', got ${actualType}`,
+        `Expected number for ${operandRole} of '${operator}', got ${actualType}`,
     );
   }
 }
@@ -147,9 +155,7 @@ export class DivideByZeroError extends NotANumberError {
       operator,
       "right operand",
       "number",
-      `not-a-number: division by zero for '${operator}' (right operand: ${String(
-        divisor,
-      )})`,
+      `Division by zero for '${operator}' (right operand: ${String(divisor)})`,
     );
   }
 }

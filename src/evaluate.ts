@@ -1,7 +1,7 @@
 import deepEqual from "fast-deep-equal";
 import {
-  JsonSelectorArithmeticOperator,
   JsonSelector,
+  JsonSelectorArithmeticOperator,
   JsonSelectorCompareOperator,
   JsonSelectorCurrent,
   JsonSelectorUnaryArithmeticOperator,
@@ -10,6 +10,7 @@ import {
   DivideByZeroError,
   InvalidArgumentValueError,
   NotANumberError,
+  UndefinedVariableError,
 } from "./errors";
 import { type EvaluationContext } from "./functions";
 import { getBuiltinFunctionProvider } from "./functions/builtins";
@@ -28,7 +29,11 @@ function isPartialEvaluationContext(
   value: unknown,
 ): value is Partial<EvaluationContext> {
   return (
-    isObject(value) && ("functionProvider" in value || "rootContext" in value)
+    isObject(value) &&
+    ("rootContext" in value ||
+      "functionProvider" in value ||
+      "bindings" in value ||
+      "legacyLiterals" in value)
   );
 }
 
@@ -57,12 +62,16 @@ export function evaluateJsonSelector(
       rootContext: evalCtxOrRoot.rootContext ?? context,
       functionProvider:
         evalCtxOrRoot.functionProvider ?? getBuiltinFunctionProvider(),
+      bindings: evalCtxOrRoot.bindings,
+      legacyLiterals: evalCtxOrRoot.legacyLiterals,
     };
   } else {
     evalCtx = {
       rootContext: evalCtxOrRoot ?? context,
       functionProvider:
         options?.functionProvider ?? getBuiltinFunctionProvider(),
+      bindings: options?.bindings,
+      legacyLiterals: options?.legacyLiterals,
     };
   }
   return evaluate(selector, context, evalCtx);
@@ -174,6 +183,26 @@ function evaluate(
         // Expression references are only meaningful as function arguments.
         // When evaluated directly, return null.
         return null;
+      },
+      variableRef({ name }) {
+        const value = evalCtx.bindings?.get(name);
+        if (value === undefined) {
+          throw new UndefinedVariableError(name);
+        }
+        return value;
+      },
+      let({ bindings, expression }) {
+        // Per lexical-scope semantics, each binding expression is evaluated
+        // against the outer scope (not against other bindings in this let).
+        const values = bindings.map(({ value }) =>
+          evaluate(value, context, evalCtx),
+        );
+        const scopedBindings = new Map(evalCtx.bindings);
+        bindings.forEach(({ name }, i) => scopedBindings.set(name, values[i]));
+        return evaluate(expression, context, {
+          ...evalCtx,
+          bindings: scopedBindings,
+        });
       },
       multiSelectList({ expressions }) {
         if (context == null) {

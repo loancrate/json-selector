@@ -1,0 +1,165 @@
+[
+  {
+    "given": { "foo": [{ "✓": "✓" }, { "✓": "✗" }] },
+    "cases": [
+      {
+        "expression": "foo[].\"✓\"",
+        "result": ["✓", "✗"]
+      }
+    ]
+  },
+  {
+    "given": { "☯": true },
+    "cases": [
+      {
+        "expression": "\"☯\"",
+        "result": true
+      }
+    ]
+  },
+  {
+    "given": { "♪♫•*¨*•.¸¸❤¸¸.•*¨*•♫♪": true },
+    "cases": [
+      {
+        "expression": "\"♪♫•*¨*•.¸¸❤¸¸.•*¨*•♫♪\"",
+        "result": true
+      }
+    ]
+  },
+  {
+    "given": { "☃": true },
+    "cases": [
+      {
+        "expression": "\"☃\"",
+        "result": true
+      }
+    ]
+  },
+  {
+    "given": {},
+    "cases": [
+      {
+        "expression": "'é' == 'e\u0301'",
+        "result": false
+      }
+    ]
+  },
+  {
+    "given": {},
+    "cases": [
+      {
+        "expression": "length('𝌆')",
+        "result": 1
+      },
+      {
+        "expression": "length('é')",
+        "result": 1
+      },
+      {
+        "expression": "length('e\u0301')",
+        "result": 2
+      }
+    ]
+  },
+  {
+    "given": {},
+    "cases": [
+      {
+        "expression": "reverse('a𝌆b')",
+        "result": "b𝌆a"
+      },
+      {
+        "expression": "reverse('aéb')",
+        "result": "béa"
+      },
+      {
+        "expression": "reverse('xe\u0303y')",
+        "result": "y\u0303ex"
+      }
+    ]
+  },
+  {
+    "given": {
+      "strings": ["é", "e\u0301", "𝌆", "ﬆ", "ﬆyle", "ﬃ"]
+    },
+    "cases": [
+      {
+        "expression": "sort(strings)",
+        "result": ["e\u0301", "é", "ﬃ", "ﬆ", "ﬆyle", "𝌆"]
+      }
+    ]
+  },
+  {
+    "given": {
+      "graphemeClusters": [
+        {
+          "string": "é",
+          "codePoints": 233,
+          "name": "LATIN SMALL LETTER E WITH ACUTE"
+        },
+        {
+          "string": "é",
+          "codePoints": [101, 769],
+          "name": "LATIN SMALL LETTER E + COMBINING ACUTE ACCENT"
+        },
+        {
+          "string": "𝌆",
+          "codePoints": 119558,
+          "name": "TETRAGRAM FOR CENTRE"
+        },
+        {
+          "string": "ﬆ",
+          "codePoints": 64262,
+          "name": "LATIN SMALL LIGATURE ST"
+        },
+        {
+          "string": "ﬀ",
+          "codePoints": 64256,
+          "name": "LATIN SMALL LIGATURE FF"
+        },
+        {
+          "string": "ﬃ",
+          "codePoints": 64259,
+          "name": "LATIN SMALL LIGATURE FFI"
+        }
+      ]
+    },
+    "cases": [
+      {
+        "expression": "sort_by(graphemeClusters, &string)",
+        "result": [
+          {
+            "string": "é",
+            "codePoints": [101, 769],
+            "name": "LATIN SMALL LETTER E + COMBINING ACUTE ACCENT"
+          },
+          {
+            "string": "é",
+            "codePoints": 233,
+            "name": "LATIN SMALL LETTER E WITH ACUTE"
+          },
+          {
+            "string": "ﬀ",
+            "codePoints": 64256,
+            "name": "LATIN SMALL LIGATURE FF"
+          },
+          {
+            "string": "ﬃ",
+            "codePoints": 64259,
+            "name": "LATIN SMALL LIGATURE FFI"
+          },
+          {
+            "string": "ﬆ",
+            "codePoints": 64262,
+            "name": "LATIN SMALL LIGATURE ST"
+          },
+          {
+            "string": "𝌆",
+            "codePoints": 119558,
+            "name": "TETRAGRAM FOR CENTRE"
+          }
+        ]
+      }
+    ]
+  }
+]

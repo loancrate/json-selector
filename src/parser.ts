@@ -6,8 +6,12 @@ import {
   JsonSelectorCurrent,
   JsonSelectorRoot,
 } from "./ast";
-import { UnexpectedEndOfInputError, UnexpectedTokenError } from "./errors";
-import { Lexer } from "./lexer";
+import {
+  InvalidTokenError,
+  UnexpectedEndOfInputError,
+  UnexpectedTokenError,
+} from "./errors";
+import { isWhitespace, Lexer } from "./lexer";
 import { EOF_DESCRIPTION, Token, TOKEN_LIMIT, TokenType } from "./token";
 
 // Pre-computed singleton AST nodes
@@ -17,6 +21,11 @@ const CURRENT_NODE: Readonly<JsonSelectorCurrent> = Object.freeze({
 const ROOT_NODE: Readonly<JsonSelectorRoot> = Object.freeze({
   type: "root",
 });
+
+export interface ParserOptions {
+  /** Enables legacy backtick-literal fallback behavior (`\`foo\`` -> `"foo"`). */
+  legacyLiterals?: boolean;
+}
 
 // Binding power constants (higher = tighter binding)
 const BP_PIPE = 1;
@@ -93,10 +102,12 @@ const TOKEN_BP: number[] = (() => {
 export class Parser {
   private readonly input: string;
   private readonly lexer: Lexer;
+  private readonly legacyLiterals: boolean;
 
-  constructor(input: string) {
+  constructor(input: string, options?: ParserOptions) {
     this.input = input;
     this.lexer = new Lexer(input);
+    this.legacyLiterals = options?.legacyLiterals === true;
   }
 
   /**
@@ -153,6 +164,13 @@ export class Parser {
         if (this.lexer.peek().type === TokenType.LPAREN) {
           return this.parseFunctionCall(token.value);
         }
+        // Contextual keyword: let expressions
+        if (
+          token.value === "let" &&
+          this.lexer.peek().type === TokenType.VARIABLE
+        ) {
+          return this.parseLetExpression();
+        }
         return { type: "identifier", id: token.value };
       }
 
@@ -184,6 +202,10 @@ export class Parser {
         this.lexer.advance();
         return ROOT_NODE;
 
+      case TokenType.VARIABLE:
+        this.lexer.advance();
+        return { type: "variableRef", name: token.value };
+
       case TokenType.RAW_STRING:
       case TokenType.TRUE:
       case TokenType.FALSE:
@@ -194,15 +216,26 @@ export class Parser {
 
       case TokenType.BACKTICK_LITERAL: {
         this.lexer.advance();
-        const content = token.value.trim();
+        const content = trimJsonWhitespace(token.value);
         try {
           // Type assertion is safe as JSON.parse returns a JsonValue
           // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
           const value = JSON.parse(content) as JsonValue;
           return { type: "literal", value, backtickSyntax: true };
         } catch {
-          // Fallback: parse as unquoted string (legacy compatibility)
-          return { type: "literal", value: content, backtickSyntax: true };
+          if (this.legacyLiterals) {
+            return {
+              type: "literal",
+              value: content.replace(/\\"/g, '"'),
+              backtickSyntax: true,
+            };
+          }
+          throw new InvalidTokenError(
+            this.input,
+            token.offset,
+            "JSON literal",
+            "expected valid JSON content between backticks",
+          );
         }
       }
 
@@ -410,6 +443,37 @@ export class Parser {
     }
   }
 
+  /**
+   * Parse lexical scope expression:
+   *   let $a = expr, $b = expr in body
+   *
+   * Called after consuming contextual "let".
+   */
+  private parseLetExpression(): JsonSelector {
+    const bindings: Array<{ name: string; value: JsonSelector }> = [];
+
+    do {
+      const variable = this.lexer.consume(TokenType.VARIABLE);
+      this.lexer.consume(TokenType.ASSIGN);
+      bindings.push({
+        name: variable.value,
+        value: this.expression(0),
+      });
+    } while (this.lexer.tryConsume(TokenType.COMMA));
+
+    const token = this.lexer.peek();
+    if (token.type !== TokenType.IDENTIFIER || token.value !== "in") {
+      throw this.unexpectedToken(token, "'in'", "after let bindings");
+    }
+    this.lexer.advance();
+
+    return {
+      type: "let",
+      bindings,
+      expression: this.expression(0),
+    };
+  }
+
   private parseCompare(
     left: JsonSelector,
     operator: JsonSelectorCompareOperator,
@@ -443,16 +507,13 @@ export class Parser {
   ): JsonSelector {
     if (expression.type === "literal" && typeof expression.value === "number") {
       const value = operator === "+" ? expression.value : -expression.value;
-      return expression.backtickSyntax === undefined
-        ? {
-            type: "literal",
-            value,
-          }
-        : {
-            type: "literal",
-            value,
-            backtickSyntax: expression.backtickSyntax,
-          };
+      return {
+        type: "literal",
+        value,
+        ...(expression.backtickSyntax !== undefined && {
+          backtickSyntax: expression.backtickSyntax,
+        }),
+      };
     }
     return {
       type: "unaryArithmetic",
@@ -914,4 +975,16 @@ export class Parser {
       context,
     );
   }
+}
+
+function trimJsonWhitespace(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && isWhitespace(value.charCodeAt(start))) {
+    ++start;
+  }
+  while (end > start && isWhitespace(value.charCodeAt(end - 1))) {
+    --end;
+  }
+  return value.slice(start, end);
 }

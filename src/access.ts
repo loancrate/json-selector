@@ -94,6 +94,22 @@ class RootContextAccessor extends ReadOnlyAccessor {
   }
 }
 
+class EvaluateAccessor extends ReadOnlyAccessor {
+  constructor(
+    selector: JsonSelector,
+    private readonly options: AccessorOptions,
+  ) {
+    super(selector);
+  }
+
+  get(context: unknown, rootContext = context): unknown {
+    return evaluateJsonSelector(this.selector, context, {
+      ...this.options,
+      rootContext,
+    });
+  }
+}
+
 /** Configuration for accessor creation, providing the function provider used during evaluation. */
 export type AccessorOptions = Omit<EvaluationContext, "rootContext">;
 
@@ -581,22 +597,17 @@ function makeAccessorInternal(
         return new Accessor();
       },
       functionCall(selector) {
-        const Accessor = class extends ReadOnlyAccessor {
-          constructor() {
-            super(selector);
-          }
-          get(context: unknown, rootContext = context) {
-            return evaluateJsonSelector(selector, context, {
-              ...options,
-              rootContext,
-            });
-          }
-        };
-        return new Accessor();
+        return new EvaluateAccessor(selector, options);
       },
       expressionRef(selector) {
         // Expression references are only meaningful as function arguments
         return new ConstantAccessor(selector, null);
+      },
+      variableRef(selector) {
+        return new EvaluateAccessor(selector, options);
+      },
+      let(selector) {
+        return new EvaluateAccessor(selector, options);
       },
       multiSelectList(selector) {
         const { expressions } = selector;

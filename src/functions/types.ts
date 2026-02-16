@@ -11,6 +11,10 @@ export type EvaluationContext = {
   rootContext: unknown;
   /** Function provider for built-in and custom functions. */
   functionProvider: FunctionProvider;
+  /** Lexical-scope variable bindings (name without `$` -> value). */
+  bindings?: ReadonlyMap<string, unknown>;
+  /** Enables legacy backtick-literal fallback behavior (non-JSON content parsed as string). */
+  legacyLiterals?: boolean;
 };
 
 /**

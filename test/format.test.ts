@@ -551,6 +551,58 @@ describe("formatJsonSelector", () => {
     });
   });
 
+  describe("let expressions", () => {
+    test("formats variable reference", () => {
+      expect(formatJsonSelector({ type: "variableRef", name: "foo" })).toBe(
+        "$foo",
+      );
+    });
+
+    test("formats let expression", () => {
+      expect(
+        formatJsonSelector({
+          type: "let",
+          bindings: [
+            { name: "x", value: { type: "identifier", id: "foo" } },
+            { name: "y", value: { type: "identifier", id: "bar" } },
+          ],
+          expression: {
+            type: "multiSelectList",
+            expressions: [
+              { type: "variableRef", name: "x" },
+              { type: "variableRef", name: "y" },
+            ],
+          },
+        }),
+      ).toBe("let $x = foo, $y = bar in [$x, $y]");
+    });
+
+    test("parenthesizes let in arithmetic expressions", () => {
+      expect(
+        formatJsonSelector({
+          type: "arithmetic",
+          operator: "+",
+          lhs: { type: "identifier", id: "a" },
+          rhs: {
+            type: "let",
+            bindings: [{ name: "x", value: { type: "identifier", id: "b" } }],
+            expression: { type: "variableRef", name: "x" },
+          },
+        }),
+      ).toBe("a + (let $x = b in $x)");
+    });
+
+    test.each([
+      "let $x = foo in $x",
+      "let $x = a, $y = b in [$x, $y]",
+      "let $x = a in let $x = b in $x",
+    ])("round-trips parse -> format -> parse: %s", (expression) => {
+      const original = parseJsonSelector(expression);
+      const formatted = formatJsonSelector(original);
+      expect(parseJsonSelector(formatted)).toStrictEqual(original);
+    });
+  });
+
   describe("multiSelectList", () => {
     test("formats multi-select list", () => {
       expect(

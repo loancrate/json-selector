@@ -187,6 +187,129 @@ describe("evaluate", () => {
     expect(evaluateJsonSelector(selector, { s: 123 })).toBeNull();
   });
 
+  describe("let expressions", () => {
+    test("resolves variableRef from explicit evaluation bindings", () => {
+      const selector = parseJsonSelector("$x");
+      expect(
+        evaluateJsonSelector(
+          selector,
+          {},
+          {
+            rootContext: {},
+            bindings: new Map([["x", 42]]),
+          },
+        ),
+      ).toBe(42);
+    });
+
+    test("treats undefined binding value as unbound variable", () => {
+      const selector = parseJsonSelector("$x");
+      const error = catchError(() =>
+        evaluateJsonSelector(
+          selector,
+          {},
+          {
+            rootContext: {},
+            bindings: new Map<string, unknown>([["x", undefined]]),
+          },
+        ),
+      );
+      expect(error).toMatchObject({
+        name: "UndefinedVariableError",
+        variableName: "x",
+        message: "Undefined variable: $x",
+      });
+    });
+
+    test("evaluates basic binding and variable reference", () => {
+      const selector = parseJsonSelector("let $x = foo in $x");
+      expect(
+        evaluateJsonSelector(selector, { foo: { bar: "baz" } }),
+      ).toStrictEqual({
+        bar: "baz",
+      });
+    });
+
+    test("evaluates multiple bindings", () => {
+      const selector = parseJsonSelector("let $x = a, $y = b in [$x, $y]");
+      expect(evaluateJsonSelector(selector, { a: 1, b: 2 })).toStrictEqual([
+        1, 2,
+      ]);
+    });
+
+    test("supports nested let shadowing", () => {
+      const selector = parseJsonSelector("let $x = a in let $x = b in $x");
+      expect(evaluateJsonSelector(selector, { a: "outer", b: "inner" })).toBe(
+        "inner",
+      );
+    });
+
+    test("binding expressions evaluate against outer scope", () => {
+      const selector = parseJsonSelector(
+        "let $a = 'top-a' in let $a = 'in-a', $b = $a in $b",
+      );
+      expect(evaluateJsonSelector(selector, {})).toBe("top-a");
+    });
+
+    test("supports let inside filter context", () => {
+      const selector = parseJsonSelector(
+        "[*].[let $home_state = home_state in states[? name == $home_state].cities[]][]",
+      );
+      const data = [
+        {
+          home_state: "WA",
+          states: [
+            { name: "WA", cities: ["Seattle", "Bellevue", "Olympia"] },
+            { name: "CA", cities: ["Los Angeles", "San Francisco"] },
+            { name: "NY", cities: ["New York City", "Albany"] },
+          ],
+        },
+        {
+          home_state: "NY",
+          states: [
+            { name: "WA", cities: ["Seattle", "Bellevue", "Olympia"] },
+            { name: "CA", cities: ["Los Angeles", "San Francisco"] },
+            { name: "NY", cities: ["New York City", "Albany"] },
+          ],
+        },
+      ];
+      expect(evaluateJsonSelector(selector, data)).toStrictEqual([
+        ["Seattle", "Bellevue", "Olympia"],
+        ["New York City", "Albany"],
+      ]);
+    });
+
+    test("projection is stopped when bound to variable", () => {
+      const selector = parseJsonSelector("let $foo = foo[*] in $foo[0]");
+      expect(
+        evaluateJsonSelector(selector, {
+          foo: [
+            [0, 1],
+            [2, 3],
+            [4, 5],
+          ],
+        }),
+      ).toStrictEqual([0, 1]);
+    });
+
+    test("throws undefined-variable for unbound variable reference", () => {
+      const selector = parseJsonSelector("$noexist");
+      const error = catchError(() => evaluateJsonSelector(selector, {}));
+      expect(error).toMatchObject({
+        name: "UndefinedVariableError",
+        variableName: "noexist",
+        message: "Undefined variable: $noexist",
+      });
+    });
+
+    test("inner null binding does not fall through to outer binding", () => {
+      const selector = parseJsonSelector(
+        "let $foo = foo in let $foo = null in $foo",
+      );
+      expect(evaluateJsonSelector(selector, { foo: "outer" })).toBeNull();
+    });
+  });
+
   describe("arithmetic expressions", () => {
     const arithmeticContext = {
       a: 6,

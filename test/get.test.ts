@@ -27,7 +27,9 @@ test("getWithJsonSelector", () => {
     };
     expect(
       getWithJsonSelector(
-        parseJsonSelector("foo[].bar[?baz.kind == `primary`][].baz | [0].name"),
+        parseJsonSelector(
+          'foo[].bar[?baz.kind == `"primary"`][].baz | [0].name',
+        ),
         obj,
       ),
     ).toBe("y");
