@@ -29,7 +29,7 @@ test("setWithJsonSelector", () => {
 
     const newValue = "q";
     const oldValue = setWithJsonSelector(
-      parseJsonSelector("foo[].bar[?baz.kind == `primary`][].baz | [0].name"),
+      parseJsonSelector('foo[].bar[?baz.kind == `"primary"`][].baz | [0].name'),
       obj,
       newValue,
     );

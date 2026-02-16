@@ -168,6 +168,20 @@ export interface JsonSelectorExpressionRef {
   expression: JsonSelector;
 }
 
+/** Reference to a lexical-scope variable (`$name`) bound by a `let` expression. */
+export interface JsonSelectorVariableRef {
+  type: "variableRef";
+  /** Variable name without the leading `$`. */
+  name: string;
+}
+
+/** Lexical-scope expression: binds variables for use within the `expression` body. */
+export interface JsonSelectorLet {
+  type: "let";
+  bindings: Array<{ name: string; value: JsonSelector }>;
+  expression: JsonSelector;
+}
+
 /** Evaluates multiple expressions in parallel and collects the results into an array, e.g. `[foo, bar]`. */
 export interface JsonSelectorMultiSelectList {
   type: "multiSelectList";
@@ -204,5 +218,7 @@ export type JsonSelector =
   | JsonSelectorPipe
   | JsonSelectorFunctionCall
   | JsonSelectorExpressionRef
+  | JsonSelectorVariableRef
+  | JsonSelectorLet
   | JsonSelectorMultiSelectList
   | JsonSelectorMultiSelectHash;

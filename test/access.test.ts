@@ -1324,6 +1324,39 @@ describe("makeJsonSelectorAccessor", () => {
     });
   });
 
+  describe("let/variableRef accessors", () => {
+    test("let accessor get evaluates scoped variable references", () => {
+      const acc = accessor("let $x = foo in $x");
+      expect(acc.get({ foo: "bar" })).toBe("bar");
+    });
+
+    test("let accessor set/delete are no-ops", () => {
+      const acc = accessor("let $x = foo in $x");
+      const obj = { foo: "bar" };
+      acc.set("changed", obj);
+      acc.delete(obj);
+      expect(obj).toStrictEqual({ foo: "bar" });
+    });
+
+    test("variableRef accessor get throws when unbound", () => {
+      const acc = accessor("$foo");
+      expect(() => acc.get({ foo: "bar" })).toThrow("Undefined variable: $foo");
+    });
+
+    test("variableRef accessor set/delete are no-ops", () => {
+      const acc = accessor("$foo");
+      const obj = { foo: "bar" };
+      acc.set("changed", obj);
+      acc.delete(obj);
+      expect(obj).toStrictEqual({ foo: "bar" });
+    });
+
+    test("isValidContext always returns true", () => {
+      expect(accessor("let $x = foo in $x").isValidContext(null)).toBe(true);
+      expect(accessor("$foo").isValidContext({})).toBe(true);
+    });
+  });
+
   describe("expressionRef accessor", () => {
     test("get returns null", () => {
       const acc = accessor("&foo");

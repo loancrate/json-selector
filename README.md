@@ -5,11 +5,13 @@ LoanCrate JSON Selectors is a production-focused TypeScript implementation for q
 ## Standards and Extensions
 
 - **Original [JMESPath](https://jmespath.org) spec**: fully implemented.
-- **[JMESPath Community Edition](https://jmespath.site/main/)**: implemented except `let` expressions.
+- **[JMESPath Community Edition](https://jmespath.site/main/)**: implemented (community fixtures are maintained separately from core JMESPath fixtures).
 - **JSON Selector extension**: ID-based index shorthand (`x['id']`).
 - **JSON Selector extension**: bare numeric literals as general expressions (for example `a-1`, `-1`, `foo[?price > 0]`) in addition to backtick numeric literals.
 
-This includes JMESPath Community features such as root-node expressions (`$`) and arithmetic expressions. The library also passes all [JMESPath compliance tests](https://github.com/jmespath/jmespath.test).
+This includes JMESPath Community features such as root-node expressions (`$`), arithmetic expressions, and lexical-scope `let` expressions (`let $x = expr in expr`). In `let` expressions, binding values are evaluated in the outer scope, and `let`/`in` are contextual keywords (not reserved identifiers). The library passes all official [JMESPath compliance tests](https://github.com/jmespath/jmespath.test) (fixtures under `test/jmespath/*`) and maintains separate Community Edition compliance fixtures under `test/jmespath-community/*`.
+
+Backtick literals use modern (JEP-12a-style) behavior by default. Legacy backtick-literal compatibility is available via the `legacyLiterals` option (used for legacy community literal fixtures).
 
 To allow for selection by ID, we extend index expressions to accept a
 [raw string literal](https://jmespath.org/specification.html#raw-string-literals)

@@ -198,9 +198,15 @@ export class Lexer {
       case 64: // @
         singleType = TokenType.AT;
         break;
-      case 36: // $
+      case 36: {
+        // $ or variable reference ($name)
+        const next = this.peekCharCode(this.pos + 1);
+        if (isIdentStart(next)) {
+          return this.scanVariable(start);
+        }
         singleType = TokenType.DOLLAR;
         break;
+      }
       case 63: // ?
         singleType = TokenType.QUESTION;
         break;
@@ -309,7 +315,7 @@ export class Lexer {
   }
 
   /**
-   * Scan ==
+   * Scan = or ==
    */
   private scanEquals(start: number): SymbolToken {
     const ch = this.advanceCharCode(); // consume first =
@@ -318,12 +324,7 @@ export class Lexer {
       this.pos++;
       return { type: TokenType.EQ, text: "==", offset: start };
     }
-    throw new UnexpectedCharacterError(
-      this.input,
-      start,
-      "=",
-      "expected '==' but got '='",
-    );
+    return { type: TokenType.ASSIGN, text: "=", offset: start };
   }
 
   /**
@@ -412,20 +413,23 @@ export class Lexer {
     while (endPos < this.length) {
       const ch = this.input.charCodeAt(endPos);
       if (ch === 96) {
-        // Found closing `
+        // A backtick is escaped only when preceded by an odd number of backslashes.
+        let slashCount = 0;
+        for (let i = endPos - 1; i >= startPos; i--) {
+          if (this.input.charCodeAt(i) !== 92) {
+            break;
+          }
+          slashCount++;
+        }
+        if (slashCount % 2 === 1) {
+          hasEscape = true;
+          endPos++;
+          continue;
+        }
+        // Found closing `.
         break;
       }
-      if (
-        ch === 92 &&
-        endPos + 1 < this.length &&
-        this.input.charCodeAt(endPos + 1) === 96
-      ) {
-        // \` escape
-        hasEscape = true;
-        endPos += 2;
-      } else {
-        endPos++;
-      }
+      endPos++;
     }
 
     if (endPos >= this.length) {
@@ -584,6 +588,25 @@ export class Lexer {
   }
 
   /**
+   * Scan variable: $[a-zA-Z_][a-zA-Z0-9_]*
+   */
+  private scanVariable(start: number): StringToken {
+    // Start is at "$". Consume first variable-name character.
+    let ch = this.advanceCharCode();
+    while (isIdentChar(ch)) {
+      ch = this.advanceCharCode();
+    }
+
+    const text = this.input.slice(start, this.pos);
+    return {
+      type: TokenType.VARIABLE,
+      text,
+      value: text.slice(1),
+      offset: start,
+    };
+  }
+
+  /**
    * Scan identifier or keyword: [a-zA-Z_][a-zA-Z0-9_]*
    */
   private scanIdentifier(
@@ -627,16 +650,16 @@ export class Lexer {
     return { type: TokenType.IDENTIFIER, text, value: text, offset: start };
   }
 
-  private peekCharCode(): number {
-    return this.pos < this.length ? this.input.charCodeAt(this.pos) : -1;
+  private peekCharCode(pos = this.pos): number {
+    return pos < this.length ? this.input.charCodeAt(pos) : -1;
   }
 
   private advanceCharCode(): number {
-    return ++this.pos < this.length ? this.input.charCodeAt(this.pos) : -1;
+    return this.peekCharCode(++this.pos);
   }
 }
 
-function isWhitespace(ch: number): boolean {
+export function isWhitespace(ch: number): boolean {
   return ch === 32 || ch === 9 || ch === 10 || ch === 13; // space, tab, newline, carriage return
 }
 
