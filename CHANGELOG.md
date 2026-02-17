@@ -1,5 +1,76 @@
 # @loancrate/json-selector
 
+## 5.0.0
+
+### Major Changes
+
+- # Complete JMESPath and JMESPath Community Edition Compliance
+
+  This major release achieves **full compliance with both original JMESPath and JMESPath Community Edition**, expanding from 85.9% (593/690) to 100% standards compliance. The implementation adds 43 built-in functions, multi-select expressions, object projections, let expressions, ternary conditionals, arithmetic operations, and a structured error hierarchy.
+
+  ## Breaking Changes
+
+  ### `parseJsonSelector` signature changed
+
+  `parseJsonSelector` now accepts an optional second `options` parameter (`ParserOptions`). Direct calls are unaffected, but passing `parseJsonSelector` as a callback to higher-order functions will now produce TypeScript errors if extra arguments are passed that aren't assignable to `ParserOptions`.
+
+  ### `evaluateJsonSelector` signature changed
+
+  Was `(selector, context, rootContext?)`. Now has two overloads:
+  - `(selector, context, evalCtx?: Partial<EvaluationContext>)` (preferred)
+  - `(selector, context, rootContext?, options?)` (deprecated)
+
+  Code passing a `rootContext` that is not an object or does not contain `EvaluationContext` keys (`rootContext`, `functionProvider`, `bindings`, `evaluateNullMultiSelect`) still works via the deprecated overload. Code passing just two args is unaffected.
+
+  ### New error hierarchy
+
+  All library errors now extend `JsonSelectorError` instead of generic `Error`:
+  - **Parse errors**: extend `JsonSelectorSyntaxError` with structured `expression` and `offset` fields
+  - **Runtime errors**: extend `JsonSelectorRuntimeError`
+  - **Type errors**: extend `JsonSelectorTypeError` (e.g. `NotANumberError`, `DivideByZeroError`)
+  - **Function errors**: extend `FunctionError` (e.g. `InvalidArityError`, `InvalidArgumentTypeError`)
+
+  Code catching errors by type may need updating.
+
+  ### 10 new AST node types
+
+  The `JsonSelector` discriminated union grew from 16 to 26 types. Exhaustive switches or visitor implementations will need new cases: `arithmetic`, `unaryArithmetic`, `ternary`, `functionCall`, `expressionRef`, `variableRef`, `let`, `multiSelectList`, `multiSelectHash`, `objectProject`.
+
+  ## New Features
+
+  ### JMESPath Community Edition support
+  - **Arithmetic expressions**: `+`, `-`, `*`, `/`, `%`, `//` plus Unicode operators (`×`, `÷`, `−`)
+  - **Let expressions**: `let $var = expr in expression` with lexical scope
+  - **Ternary conditionals**: `condition ? true_expr : false_expr`
+  - **String slices**: full JEP-15 support for string slicing operations
+
+  ### Complete function system
+
+  43 built-in JMESPath functions with `FunctionRegistry` and extensible `FunctionProvider`:
+  - **Type**: `type()`
+  - **String**: `length()`, `reverse()`, `to_string()`, `starts_with()`, `ends_with()`, `contains()`, `join()`, `split()`, `trim()`, `upper()`, `lower()`, `replace()`, `pad_left()`, `pad_right()`, `find_first()`, `find_last()`
+  - **Math**: `abs()`, `ceil()`, `floor()`, `sum()`, `avg()`, `min()`, `max()`, `min_by()`, `max_by()`
+  - **Array**: `sort()`, `sort_by()`, `keys()`, `values()`, `map()`, `to_array()`, `reverse()`, `merge()`, `zip()`, `from_entries()`, `to_entries()`, `group_by()`, `unique()`, `unique_by()`, `items()`
+  - **Object**: `to_object()`, `not_null()`
+
+  ### Multi-select expressions
+  - **Multi-select lists**: `[foo, bar]` — select multiple fields into an array
+  - **Multi-select hashes**: `{a: foo, b: bar}` — create new objects from selections
+
+  ### Object projections and expression references
+  - **Wildcard projections**: `.*` — project over object values
+  - **Expression references**: `&expr` — for use with `sort_by()`, `max_by()`, `min_by()`, `group_by()`, `map()`
+
+  ### Parser and evaluation options
+  - `ParserOptions` for controlling literal parsing (`strictJsonLiterals`) and raw-string escape behavior (`rawStringBackslashEscape`)
+  - `EvaluationContext` for runtime configuration including function provider, variable bindings, and null multi-select behavior
+
+  ## Other Improvements
+  - Full JMESPath compliance: 690/690 original tests passing
+  - Full JMESPath Community Edition compliance: all fixtures passing
+  - Comprehensive reference documentation (language, functions, API, benchmarks)
+  - 100% code coverage maintained
+
 ## 4.0.0
 
 ### Major Changes
