@@ -68,8 +68,8 @@ npx jest test/parse.test.ts
 
 - `test/jmespath/*`: official `jmespath.test` fixtures.
 - `test/jmespath-community/*`: community deltas and additions.
-- Core JMESPath fixtures (`test/jmespath/*`) run with compatibility options enabled: `legacyRawStringEscapes` (parser) and `legacyNullPropagation` (evaluation).
-- Legacy community literal fixtures (`test/jmespath-community/legacy/*`) run with `legacyLiterals` enabled; other community fixtures run in modern mode.
+- Core JMESPath fixtures (`test/jmespath/*`) run with compatibility options: `rawStringBackslashEscape: false` (parser) and `evaluateNullMultiSelect: false` (evaluation).
+- Legacy community literal fixtures (`test/jmespath-community/legacy/*`) run with default permissive behavior; other community fixtures run with `strictJsonLiterals: true`.
 
 **Supported Features**:
 

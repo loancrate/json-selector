@@ -114,7 +114,7 @@ Embeds a constant JSON value. The content between backticks must be valid JSON. 
 
 Note: the backtick content must be valid JSON, so strings require inner quotes: `` `"hello"` ``, not `` `hello` ``.
 
-With `legacyLiterals` enabled, invalid JSON inside backticks falls back to a string (e.g., `` `foo` `` becomes `"foo"`).
+By default, invalid JSON inside backticks falls back to a string (e.g., `` `foo` `` becomes `"foo"`). With `strictJsonLiterals` enabled, invalid JSON throws a syntax error instead.
 
 ### Raw Strings
 
@@ -128,7 +128,7 @@ A string literal where the content is taken verbatim. Escape single quotes with 
 'backslash: \\'
 ```
 
-With `legacyRawStringEscapes` enabled, only `\'` is unescaped; `\\` remains literal.
+With `rawStringBackslashEscape` disabled, only `\'` is unescaped; `\\` remains literal.
 
 ### Quoted Strings
 
@@ -497,12 +497,12 @@ The parser resolves ambiguity with negative array indices: `-` is always tokeniz
 
 ## Legacy Compatibility
 
-Three parser/evaluation options control backward-compatible behavior:
+Three parser/evaluation options control standards-compliance behavior:
 
-| Option                   | Scope      | Default | Effect                                                                          |
-| ------------------------ | ---------- | ------- | ------------------------------------------------------------------------------- |
-| `legacyLiterals`         | Parser     | `false` | Invalid JSON in backticks falls back to string (e.g., `` `foo` `` → `"foo"`)    |
-| `legacyRawStringEscapes` | Parser     | `false` | Only `\'` is unescaped in raw strings; `\\` stays literal                       |
-| `legacyNullPropagation`  | Evaluation | `false` | Multi-select on `null` context returns `null` instead of evaluating expressions |
+| Option                     | Scope      | Default | Effect                                                                                    |
+| -------------------------- | ---------- | ------- | ----------------------------------------------------------------------------------------- |
+| `strictJsonLiterals`       | Parser     | `false` | Require valid JSON in backtick literals; throw instead of falling back to a string        |
+| `rawStringBackslashEscape` | Parser     | `true`  | Enable backslash escape in raw strings (both `\'` and `\\` are unescaped)                 |
+| `evaluateNullMultiSelect`  | Evaluation | `true`  | Evaluate multi-select expressions on `null` context instead of short-circuiting to `null` |
 
-Default behavior follows JMESPath Community Edition semantics. Enable these options for compatibility with original JMESPath behavior.
+Default behavior is permissive (backtick fallback enabled, backslash escapes enabled, null multi-select evaluation enabled). For strict JMESPath Community Edition compliance, set `strictJsonLiterals: true`. For original JMESPath compatibility, set `rawStringBackslashEscape: false` and `evaluateNullMultiSelect: false`.

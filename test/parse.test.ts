@@ -591,9 +591,11 @@ describe("parseJsonSelector", () => {
       });
     });
 
-    test("raw string preserves \\\\ in legacyRawStringEscapes mode", () => {
+    test("raw string preserves \\\\ when rawStringBackslashEscape is disabled", () => {
       expect(
-        parseJsonSelector(String.raw`'\\'`, { legacyRawStringEscapes: true }),
+        parseJsonSelector(String.raw`'\\'`, {
+          rawStringBackslashEscape: false,
+        }),
       ).toStrictEqual<JsonSelector>({
         type: "literal",
         value: "\\\\",
@@ -656,22 +658,22 @@ describe("parseJsonSelector", () => {
       });
     });
 
-    test("backtick invalid JSON throws syntax by default", () => {
-      const error = catchError(() => parseJsonSelector("`invalid`"));
+    test("backtick invalid JSON falls back to string by default", () => {
+      expect(parseJsonSelector("`invalid`")).toStrictEqual<JsonSelector>({
+        type: "literal",
+        value: "invalid",
+        backtickSyntax: true,
+      });
+    });
+
+    test("backtick invalid JSON throws syntax in strict mode", () => {
+      const error = catchError(() =>
+        parseJsonSelector("`invalid`", { strictJsonLiterals: true }),
+      );
       expect(error).toMatchObject({
         name: "InvalidTokenError",
         expression: "`invalid`",
         tokenKind: "JSON literal",
-      });
-    });
-
-    test("backtick invalid JSON falls back to string in legacy mode", () => {
-      expect(
-        parseJsonSelector("`invalid`", { legacyLiterals: true }),
-      ).toStrictEqual<JsonSelector>({
-        type: "literal",
-        value: "invalid",
-        backtickSyntax: true,
       });
     });
   });

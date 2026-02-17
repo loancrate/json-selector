@@ -121,12 +121,15 @@ function addTestSuitesFromFile(filename: string) {
 function getFixtureSearchOptions(filename: string): SearchOptions | undefined {
   if (/test\/jmespath\//.test(filename)) {
     return {
-      evalCtx: { legacyNullPropagation: true },
-      parserOptions: { legacyRawStringEscapes: true },
+      evalCtx: { evaluateNullMultiSelect: false },
+      parserOptions: { rawStringBackslashEscape: false },
     };
   }
   if (/test\/jmespath-community\/legacy\//.test(filename)) {
-    return { parserOptions: { legacyLiterals: true } };
+    return undefined; // default permissive behavior
+  }
+  if (/test\/jmespath-community\//.test(filename)) {
+    return { parserOptions: { strictJsonLiterals: true } };
   }
   return undefined;
 }

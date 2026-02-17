@@ -60,7 +60,7 @@ Two extensions are added:
 - **ID-based access**: `x['id']` selects the first array element whose `id` property matches — equivalent to `x[?id == 'id'] | [0]` in standard JMESPath.
 - **Bare numeric literals**: Numbers like `0`, `-1`, `3.14` can appear directly in expressions without backtick delimiters, enabling natural syntax like `foo[?price > 0]` and `a - 1`.
 
-Legacy compatibility options (`legacyLiterals`, `legacyRawStringEscapes`, `legacyNullPropagation`) are available for original JMESPath behavior. See the [Language Reference](docs/language.md#legacy-compatibility) for details.
+Compatibility options (`strictJsonLiterals`, `rawStringBackslashEscape`, `evaluateNullMultiSelect`) control standards-compliance behavior. See the [Language Reference](docs/language.md#legacy-compatibility) for details.
 
 ## License
 
