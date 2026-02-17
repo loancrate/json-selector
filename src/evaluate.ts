@@ -34,7 +34,7 @@ function isPartialEvaluationContext(
     ("rootContext" in value ||
       "functionProvider" in value ||
       "bindings" in value ||
-      "legacyNullPropagation" in value)
+      "evaluateNullMultiSelect" in value)
   );
 }
 
@@ -64,7 +64,7 @@ export function evaluateJsonSelector(
       functionProvider:
         evalCtxOrRoot.functionProvider ?? getBuiltinFunctionProvider(),
       bindings: evalCtxOrRoot.bindings,
-      legacyNullPropagation: evalCtxOrRoot.legacyNullPropagation,
+      evaluateNullMultiSelect: evalCtxOrRoot.evaluateNullMultiSelect ?? true,
     };
   } else {
     evalCtx = {
@@ -72,7 +72,7 @@ export function evaluateJsonSelector(
       functionProvider:
         options?.functionProvider ?? getBuiltinFunctionProvider(),
       bindings: options?.bindings,
-      legacyNullPropagation: options?.legacyNullPropagation,
+      evaluateNullMultiSelect: options?.evaluateNullMultiSelect ?? true,
     };
   }
   return evaluate(selector, context, evalCtx);
@@ -206,7 +206,7 @@ function evaluate(
         });
       },
       multiSelectList({ expressions }) {
-        if (evalCtx.legacyNullPropagation && context == null) {
+        if (context == null && !evalCtx.evaluateNullMultiSelect) {
           return null;
         }
         // Default behavior follows JMESPath Community semantics:
@@ -215,7 +215,7 @@ function evaluate(
         return expressions.map((expr) => evaluate(expr, context, evalCtx));
       },
       multiSelectHash({ entries }) {
-        if (evalCtx.legacyNullPropagation && context == null) {
+        if (context == null && !evalCtx.evaluateNullMultiSelect) {
           return null;
         }
         // Default behavior follows JMESPath Community semantics:

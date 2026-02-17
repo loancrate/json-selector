@@ -88,10 +88,10 @@ const TOKEN_BP: number[] = (() => {
 })();
 
 export interface ParserOptions {
-  /** Enables legacy backtick-literal fallback behavior (`\`foo\`` -> `"foo"`). */
-  legacyLiterals?: boolean;
-  /** Enables legacy raw-string escapes (only \' is unescaped). */
-  legacyRawStringEscapes?: boolean;
+  /** Requires valid JSON content in backtick literals; throws on invalid JSON instead of falling back to a string. */
+  strictJsonLiterals?: boolean;
+  /** Enables backslash escape in raw strings (both \' and \\ are unescaped). Defaults to true. */
+  rawStringBackslashEscape?: boolean;
 }
 
 /**
@@ -105,14 +105,14 @@ export interface ParserOptions {
 export class Parser {
   private readonly input: string;
   private readonly lexer: Lexer;
-  private readonly legacyLiterals: boolean;
+  private readonly strictJsonLiterals: boolean;
 
   constructor(input: string, options?: ParserOptions) {
     this.input = input;
     this.lexer = new Lexer(input, {
-      legacyRawStringEscapes: options?.legacyRawStringEscapes,
+      rawStringBackslashEscape: options?.rawStringBackslashEscape,
     });
-    this.legacyLiterals = options?.legacyLiterals === true;
+    this.strictJsonLiterals = options?.strictJsonLiterals === true;
   }
 
   /**
@@ -228,19 +228,19 @@ export class Parser {
           const value = JSON.parse(content) as JsonValue;
           return { type: "literal", value, backtickSyntax: true };
         } catch {
-          if (this.legacyLiterals) {
-            return {
-              type: "literal",
-              value: content.replace(/\\"/g, '"'),
-              backtickSyntax: true,
-            };
+          if (this.strictJsonLiterals) {
+            throw new InvalidTokenError(
+              this.input,
+              token.offset,
+              "JSON literal",
+              "expected valid JSON content between backticks",
+            );
           }
-          throw new InvalidTokenError(
-            this.input,
-            token.offset,
-            "JSON literal",
-            "expected valid JSON content between backticks",
-          );
+          return {
+            type: "literal",
+            value: content.replace(/\\"/g, '"'),
+            backtickSyntax: true,
+          };
         }
       }
 

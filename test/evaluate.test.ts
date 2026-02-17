@@ -76,10 +76,10 @@ describe("evaluate", () => {
     expect(evaluateJsonSelector(selector, null)).toStrictEqual([null, null]);
   });
 
-  test("multiSelectList returns null in legacy null-propagation mode", () => {
+  test("multiSelectList returns null when evaluateNullMultiSelect is disabled", () => {
     const selector = parseJsonSelector("[a, b]");
     expect(
-      evaluateJsonSelector(selector, null, { legacyNullPropagation: true }),
+      evaluateJsonSelector(selector, null, { evaluateNullMultiSelect: false }),
     ).toBeNull();
   });
 
@@ -91,10 +91,21 @@ describe("evaluate", () => {
     });
   });
 
-  test("multiSelectHash returns null in legacy null-propagation mode", () => {
+  test("multiSelectHash returns null when evaluateNullMultiSelect is disabled", () => {
     const selector = parseJsonSelector("{x: a, y: b}");
     expect(
-      evaluateJsonSelector(selector, null, { legacyNullPropagation: true }),
+      evaluateJsonSelector(selector, null, { evaluateNullMultiSelect: false }),
+    ).toBeNull();
+  });
+
+  test("multiSelectList returns null via deprecated overload with evaluateNullMultiSelect disabled", () => {
+    const selector = parseJsonSelector("[a, b]");
+    expect(
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- testing legacy overload
+      evaluateJsonSelector(selector, null, null, {
+        functionProvider: getBuiltinFunctionProvider(),
+        evaluateNullMultiSelect: false,
+      }),
     ).toBeNull();
   });
 

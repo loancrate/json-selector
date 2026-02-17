@@ -12,6 +12,6 @@ export type EvaluationContext = {
   functionProvider: FunctionProvider;
   /** Lexical-scope variable bindings (name without `$` -> value). */
   bindings?: ReadonlyMap<string, unknown>;
-  /** Enables legacy null propagation for multi-select expressions. */
-  legacyNullPropagation?: boolean;
+  /** Evaluates multi-select expressions on null context instead of short-circuiting to null. Defaults to true. */
+  evaluateNullMultiSelect?: boolean;
 };

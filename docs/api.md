@@ -71,10 +71,10 @@ Parses an expression string into an AST. Throws a `JsonSelectorSyntaxError` subc
 
 **`ParserOptions`**
 
-| Field                    | Type      | Default | Description                                                             |
-| ------------------------ | --------- | ------- | ----------------------------------------------------------------------- |
-| `legacyLiterals`         | `boolean` | `false` | Enable legacy backtick-literal fallback (invalid JSON becomes a string) |
-| `legacyRawStringEscapes` | `boolean` | `false` | Only unescape `\'` in raw strings (not `\\`)                            |
+| Field                      | Type      | Default | Description                                                                        |
+| -------------------------- | --------- | ------- | ---------------------------------------------------------------------------------- |
+| `strictJsonLiterals`       | `boolean` | `false` | Require valid JSON in backtick literals; throw instead of falling back to a string |
+| `rawStringBackslashEscape` | `boolean` | `true`  | Enable backslash escape in raw strings (both `\'` and `\\` are unescaped)          |
 
 ### `evaluateJsonSelector`
 
@@ -90,12 +90,12 @@ Evaluates a parsed selector against `context` and returns the result. The option
 
 **`EvaluationContext`**
 
-| Field                   | Type                           | Default            | Description                                                 |
-| ----------------------- | ------------------------------ | ------------------ | ----------------------------------------------------------- |
-| `rootContext`           | `unknown`                      | `context`          | The root document, accessible via `$`                       |
-| `functionProvider`      | `FunctionProvider`             | Built-in functions | Function lookup table                                       |
-| `bindings`              | `ReadonlyMap<string, unknown>` | —                  | Pre-bound lexical variables                                 |
-| `legacyNullPropagation` | `boolean`                      | `false`            | Multi-select on `null` returns `null` instead of evaluating |
+| Field                     | Type                           | Default            | Description                                                                     |
+| ------------------------- | ------------------------------ | ------------------ | ------------------------------------------------------------------------------- |
+| `rootContext`             | `unknown`                      | `context`          | The root document, accessible via `$`                                           |
+| `functionProvider`        | `FunctionProvider`             | Built-in functions | Function lookup table                                                           |
+| `bindings`                | `ReadonlyMap<string, unknown>` | —                  | Pre-bound lexical variables                                                     |
+| `evaluateNullMultiSelect` | `boolean`                      | `true`             | Evaluate multi-select expressions on `null` context instead of short-circuiting |
 
 A deprecated overload accepting `(selector, context, rootContext, options)` still exists for backward compatibility.
 
@@ -133,11 +133,11 @@ Compiles and binds a selector in one step. Returns a bound `Accessor`.
 
 **`AccessorOptions`**
 
-| Field                   | Type                           | Default            | Description                                                |
-| ----------------------- | ------------------------------ | ------------------ | ---------------------------------------------------------- |
-| `functionProvider`      | `FunctionProvider`             | Built-in functions | Function lookup table for evaluation                       |
-| `bindings`              | `ReadonlyMap<string, unknown>` | —                  | Lexical-scope variable bindings (name without `$` → value) |
-| `legacyNullPropagation` | `boolean`                      | `false`            | Propagate `null` through multi-select expressions          |
+| Field                     | Type                           | Default            | Description                                                                     |
+| ------------------------- | ------------------------------ | ------------------ | ------------------------------------------------------------------------------- |
+| `functionProvider`        | `FunctionProvider`             | Built-in functions | Function lookup table for evaluation                                            |
+| `bindings`                | `ReadonlyMap<string, unknown>` | —                  | Lexical-scope variable bindings (name without `$` → value)                      |
+| `evaluateNullMultiSelect` | `boolean`                      | `true`             | Evaluate multi-select expressions on `null` context instead of short-circuiting |
 
 ### `makeJsonSelectorAccessor`
 

@@ -38,8 +38,8 @@ const ESCAPE_CHARS: Record<string, string> = {
 };
 
 export interface LexerOptions {
-  /** Enables legacy raw-string escapes (only \' is unescaped). */
-  legacyRawStringEscapes?: boolean;
+  /** Enables backslash escape in raw strings (both \' and \\ are unescaped). Defaults to true. */
+  rawStringBackslashEscape?: boolean;
 }
 
 /**
@@ -49,14 +49,14 @@ export interface LexerOptions {
 export class Lexer {
   private readonly input: string;
   private readonly length: number;
-  private readonly legacyRawStringEscapes: boolean;
+  private readonly rawStringBackslashEscape: boolean;
   private pos: number = 0;
   private current: Token;
 
   constructor(input: string, options?: LexerOptions) {
     this.input = input;
     this.length = input.length;
-    this.legacyRawStringEscapes = options?.legacyRawStringEscapes === true;
+    this.rawStringBackslashEscape = options?.rawStringBackslashEscape ?? true;
     this.current = this.scanNext();
   }
 
@@ -363,8 +363,8 @@ export class Lexer {
 
   /**
    * Scan raw string: '...'
-   * Handles \' and \\ escapes by default.
-   * In legacy mode, only \' is unescaped.
+   * When rawStringBackslashEscape is true (default), both \' and \\ are unescaped.
+   * When false, only \' is unescaped.
    * Optimized to use slicing for long strings
    */
   private scanRawString(start: number): StringToken {
@@ -398,9 +398,9 @@ export class Lexer {
     let value = this.input.slice(startPos, endPos);
 
     if (hasEscape) {
-      value = this.legacyRawStringEscapes
-        ? value.replace(/\\'/g, "'")
-        : value.replace(/\\([\\'])/g, "$1");
+      value = this.rawStringBackslashEscape
+        ? value.replace(/\\([\\'])/g, "$1")
+        : value.replace(/\\'/g, "'");
     }
 
     this.pos = endPos + 1;

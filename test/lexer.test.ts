@@ -214,9 +214,9 @@ describe("Lexer", () => {
         });
       });
 
-      test("keeps \\\\ in raw strings in legacyRawStringEscapes mode", () => {
+      test("keeps \\\\ in raw strings when rawStringBackslashEscape is disabled", () => {
         expect(
-          tokenize(String.raw`'\\'`, { legacyRawStringEscapes: true }),
+          tokenize(String.raw`'\\'`, { rawStringBackslashEscape: false }),
         ).toMatchObject({
           type: TokenType.RAW_STRING,
           value: "\\\\",
