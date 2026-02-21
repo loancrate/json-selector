@@ -16,9 +16,9 @@ TypeScript API for `@loancrate/json-selector`.
 
 | Export                                                  | Description                                         |
 | ------------------------------------------------------- | --------------------------------------------------- |
-| [`accessWithJsonSelector`](#accesswithjsonselector)     | Parse, compile, and bind a selector in one step     |
+| [`accessWithJsonSelector`](#accesswithjsonselector)     | Compile and bind a selector in one step             |
 | [`makeJsonSelectorAccessor`](#makejsonselectoraccessor) | Compile a selector into a reusable unbound accessor |
-| [`bindJsonSelectorAccessor`](#bindjsonselectoraccessor) | Bind an unbound accessor to a context               |
+| [`bindJsonSelectorAccessor`](#bindjsonselectoraccessor) | Bind an unbound accessor to a context/root context  |
 | [`getWithJsonSelector`](#getwithjsonselector)           | Read-only convenience wrapper                       |
 | [`setWithJsonSelector`](#setwithjsonselector)           | Write convenience wrapper                           |
 
@@ -46,6 +46,7 @@ TypeScript API for `@loancrate/json-selector`.
 | [`JsonSelectorError`](#error-hierarchy)       | Base class for all library errors     |
 | [`JsonSelectorSyntaxError`](#syntax-errors)   | Base class for parse-time errors      |
 | [`JsonSelectorRuntimeError`](#runtime-errors) | Base class for evaluation-time errors |
+| [`AccessorError`](#runtime-errors)            | Structured accessor read/write errors |
 
 ### AST
 
@@ -111,10 +112,10 @@ Converts an AST back into an expression string. Preserves syntax hints: backtick
 
 ## Accessor Functions
 
-Accessors provide `get()`, `set()`, and `delete()` operations on JSON data identified by a selector. The system uses a two-phase approach:
+Accessors provide `get()`/`getOrThrow()`, `set()`/`setOrThrow()`, and `delete()`/`deleteOrThrow()` operations on JSON data identified by a selector. The system uses a two-phase approach:
 
 1. **Compile** (`makeJsonSelectorAccessor`) — produces an `UnboundAccessor` from a selector AST. This can be done once and reused.
-2. **Bind** (`bindJsonSelectorAccessor`) — binds the accessor to a specific context object, producing an `Accessor<T>`.
+2. **Bind** (`bindJsonSelectorAccessor`) — binds the accessor to a specific context/root context, producing an `Accessor<T>`.
 
 For one-shot use, `accessWithJsonSelector` combines both steps.
 
@@ -157,13 +158,17 @@ interface UnboundAccessor {
   readonly selector: JsonSelector;
   isValidContext(context: unknown, rootContext?: unknown): boolean;
   get(context: unknown, rootContext?: unknown): unknown;
+  getOrThrow(context: unknown, rootContext?: unknown): unknown;
   set(value: unknown, context: unknown, rootContext?: unknown): void;
+  setOrThrow(value: unknown, context: unknown, rootContext?: unknown): void;
   delete(context: unknown, rootContext?: unknown): void;
+  deleteOrThrow(context: unknown, rootContext?: unknown): void;
 }
 ```
 
 - `isValidContext` — returns `true` if the selector can meaningfully operate on the given context (e.g., field access requires an object).
 - `set` and `delete` are no-ops for read-only expressions (comparisons, logical operators, `!`).
+- `getOrThrow`, `setOrThrow`, and `deleteOrThrow` throw `AccessorError` when the operation cannot be applied (for example: read-only selector, missing parent, type mismatch, missing ID, out-of-bounds index).
 - For projections, filters, and slices, `set` applies the value to each matching element, and `delete` removes matching elements while preserving non-matching ones.
 
 ### `bindJsonSelectorAccessor`
@@ -176,7 +181,7 @@ function bindJsonSelectorAccessor(
 ): Accessor<unknown>;
 ```
 
-Binds an unbound accessor to a specific context.
+Binds an unbound accessor to a specific context/root context.
 
 **`Accessor<T>`**
 
@@ -186,8 +191,11 @@ interface Accessor<T> {
   readonly valid: boolean; // result of isValidContext
   readonly path: string; // formatted selector string
   get(): T;
+  getOrThrow(): T;
   set(value: T): void;
+  setOrThrow(value: T): void;
   delete(): void;
+  deleteOrThrow(): void;
 }
 ```
 
@@ -403,6 +411,7 @@ JsonSelectorError
     ├── JsonSelectorTypeError
     │   ├── NotANumberError
     │   └── DivideByZeroError
+    ├── AccessorError
     ├── UndefinedVariableError
     └── FunctionError
         ├── UnknownFunctionError
@@ -437,6 +446,7 @@ All runtime errors extend `JsonSelectorRuntimeError`.
 
 | Error                       | Fields                                  | Thrown When                                                                         |
 | --------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
+| `AccessorError`             | `code`, `path`, `operation`             | Accessor `*OrThrow` operation cannot be performed on the provided context           |
 | `NotANumberError`           | `operator`, `operandRole`, `actualType` | Arithmetic on non-numeric operand                                                   |
 | `DivideByZeroError`         | `operator`, `divisor`                   | Division or integer division by zero                                                |
 | `UndefinedVariableError`    | `variableName`                          | Referencing an unbound `$variable`                                                  |
@@ -444,6 +454,14 @@ All runtime errors extend `JsonSelectorRuntimeError`.
 | `InvalidArityError`         | `functionName`                          | Wrong number of arguments                                                           |
 | `InvalidArgumentTypeError`  | `functionName`, `argumentName`          | Argument has wrong type                                                             |
 | `InvalidArgumentValueError` | `functionName`, `argumentName`          | Argument type is valid but value is not (e.g., negative integer, non-integer float) |
+
+`AccessorError.code` is one of:
+
+- `NOT_WRITABLE`
+- `MISSING_PARENT`
+- `TYPE_MISMATCH`
+- `INDEX_OUT_OF_BOUNDS`
+- `MISSING_ID`
 
 ---
 

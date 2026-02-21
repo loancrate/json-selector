@@ -1,5 +1,11 @@
 # @loancrate/json-selector
 
+## 5.1.0
+
+### Minor Changes
+
+- Add strict accessor variants (getOrThrow, setOrThrow, deleteOrThrow) that throw structured AccessorError instead of silently returning null or ignoring invalid writes
+
 ## 5.0.0
 
 ### Major Changes

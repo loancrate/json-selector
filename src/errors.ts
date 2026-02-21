@@ -117,6 +117,27 @@ export class JsonSelectorRuntimeError extends JsonSelectorError {}
  */
 export class JsonSelectorTypeError extends JsonSelectorRuntimeError {}
 
+export type AccessorErrorCode =
+  | "NOT_WRITABLE"
+  | "MISSING_PARENT"
+  | "TYPE_MISMATCH"
+  | "INDEX_OUT_OF_BOUNDS"
+  | "MISSING_ID";
+
+/**
+ * Error thrown when an accessor operation cannot be applied to the given context.
+ */
+export class AccessorError extends JsonSelectorRuntimeError {
+  constructor(
+    public readonly code: AccessorErrorCode,
+    public readonly path: string,
+    public readonly operation: "get" | "set" | "delete",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 /**
  * Error thrown when reading an unbound lexical-scope variable.
  */

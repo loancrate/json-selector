@@ -1,62 +1,15 @@
-import {
-  accessWithJsonSelector,
-  bindJsonSelectorAccessor,
-  makeJsonSelectorAccessor,
-} from "../src/access";
+import { makeJsonSelectorAccessor } from "../src/access";
 import { NUMBER_TYPE } from "../src/functions/datatype";
 import { FunctionRegistry } from "../src/functions/registry";
 import { arg } from "../src/functions/validation";
 import { parseJsonSelector } from "../src/parse";
 
+import { expectAccessorError } from "./access-helpers";
+
 describe("makeJsonSelectorAccessor", () => {
   // Helper to create accessor from expression string
   const accessor = (expr: string) =>
     makeJsonSelectorAccessor(parseJsonSelector(expr));
-
-  // ============================================================
-  // Utility functions
-  // ============================================================
-  describe("accessWithJsonSelector / bindJsonSelectorAccessor", () => {
-    test("returns accessor with valid, path, get, set, delete", () => {
-      const obj = { foo: "bar" };
-      const acc = accessWithJsonSelector(parseJsonSelector("foo"), obj);
-
-      expect(acc).toMatchObject({ valid: true, path: "foo" });
-      expect(acc.get()).toBe("bar");
-
-      acc.set("baz");
-      expect(obj.foo).toBe("baz");
-
-      acc.delete();
-      expect(obj).toStrictEqual({});
-    });
-
-    test("bindJsonSelectorAccessor works with unbound accessor", () => {
-      const obj = { x: 1 };
-      const unbound = makeJsonSelectorAccessor(parseJsonSelector("x"));
-      const bound = bindJsonSelectorAccessor(unbound, obj);
-
-      expect(bound).toMatchObject({
-        selector: { type: "identifier", id: "x" },
-        valid: true,
-        path: "x",
-      });
-      expect(bound.get()).toBe(1);
-
-      bound.set(2);
-      expect(obj.x).toBe(2);
-
-      bound.delete();
-      expect(obj).toStrictEqual({});
-    });
-
-    test("valid is false for invalid context", () => {
-      const acc = accessWithJsonSelector(parseJsonSelector("foo[0]"), {
-        foo: "not an array",
-      });
-      expect(acc.valid).toBe(false);
-    });
-  });
 
   // ============================================================
   // Read-only accessors
@@ -1444,6 +1397,856 @@ describe("makeJsonSelectorAccessor", () => {
     });
   });
 
+  describe("getOrThrow", () => {
+    describe("read-only selectors delegate to get", () => {
+      test.each([
+        { expr: "`42`", context: {}, expected: 42 },
+        { expr: "@", context: { a: 1 }, expected: { a: 1 } },
+        { expr: "$", context: { a: 1 }, expected: { a: 1 } },
+        { expr: "!@", context: null, expected: true },
+        { expr: "foo == `1`", context: { foo: 1 }, expected: true },
+        { expr: "a + b", context: { a: 1, b: 2 }, expected: 3 },
+        { expr: "-a", context: { a: 5 }, expected: -5 },
+        { expr: "foo && bar", context: { foo: true, bar: "v" }, expected: "v" },
+        { expr: "foo || bar", context: { foo: null, bar: "v" }, expected: "v" },
+        {
+          expr: "cond ? yes : no",
+          context: { cond: true, yes: "y", no: "n" },
+          expected: "y",
+        },
+        { expr: "length(@)", context: [1, 2, 3], expected: 3 },
+        { expr: "&foo", context: { foo: 1 }, expected: null },
+        {
+          expr: "let $x = foo in $x",
+          context: { foo: "bar" },
+          expected: "bar",
+        },
+        { expr: "[a, b]", context: { a: 1, b: 2 }, expected: [1, 2] },
+        {
+          expr: "{x: a, y: b}",
+          context: { a: 1, b: 2 },
+          expected: { x: 1, y: 2 },
+        },
+      ])(
+        "$expr getOrThrow returns same as get",
+        ({ expr, context, expected }) => {
+          const acc = accessor(expr);
+          expect(acc.getOrThrow(context)).toStrictEqual(expected);
+        },
+      );
+    });
+
+    describe("identifier", () => {
+      test("TYPE_MISMATCH on non-object", () => {
+        const acc = accessor("foo");
+        expectAccessorError(
+          () => acc.getOrThrow("nope"),
+          "TYPE_MISMATCH",
+          "get",
+          "expected object, got string",
+        );
+        expectAccessorError(
+          () => acc.getOrThrow(null),
+          "TYPE_MISMATCH",
+          "get",
+          "expected object, got null",
+        );
+      });
+
+      test("returns value on valid object", () => {
+        const acc = accessor("foo");
+        expect(acc.getOrThrow({ foo: "bar" })).toBe("bar");
+      });
+
+      test("returns null for missing field on valid object", () => {
+        const acc = accessor("foo");
+        expect(acc.getOrThrow({})).toBeNull();
+      });
+    });
+
+    describe("fieldAccess", () => {
+      test("MISSING_PARENT when parent is null/undefined", () => {
+        const acc = accessor("a.b");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "get",
+        );
+        expectAccessorError(() => acc.getOrThrow({}), "MISSING_PARENT", "get");
+      });
+
+      test("TYPE_MISMATCH when parent is wrong type", () => {
+        const acc = accessor("a.b");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected object, got string",
+        );
+      });
+
+      test("returns value on valid nested object", () => {
+        const acc = accessor("a.b");
+        expect(acc.getOrThrow({ a: { b: "value" } })).toBe("value");
+      });
+
+      test("returns null for missing field on valid parent", () => {
+        const acc = accessor("a.b");
+        expect(acc.getOrThrow({ a: {} })).toBeNull();
+      });
+    });
+
+    describe("indexAccess", () => {
+      test("MISSING_PARENT when parent is null/undefined", () => {
+        const acc = accessor("a[1]");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "get",
+        );
+      });
+
+      test("TYPE_MISMATCH when parent is wrong type", () => {
+        const acc = accessor("a[0]");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected array, got string",
+        );
+      });
+
+      test("returns null for out-of-bounds index", () => {
+        const acc = accessor("a[10]");
+        expect(acc.getOrThrow({ a: [1, 2, 3] })).toBeNull();
+      });
+
+      test("returns null for out-of-bounds negative index", () => {
+        const acc = accessor("a[-5]");
+        expect(acc.getOrThrow({ a: [1, 2, 3] })).toBeNull();
+      });
+
+      test("returns value for valid index", () => {
+        const acc = accessor("a[1]");
+        expect(acc.getOrThrow({ a: [10, 20, 30] })).toBe(20);
+      });
+
+      test("returns value for valid negative index", () => {
+        const acc = accessor("a[-1]");
+        expect(acc.getOrThrow({ a: [10, 20, 30] })).toBe(30);
+      });
+    });
+
+    describe("idAccess", () => {
+      test("MISSING_PARENT when parent is null/undefined", () => {
+        const acc = accessor("items['x']");
+        expectAccessorError(
+          () => acc.getOrThrow({ items: null }),
+          "MISSING_PARENT",
+          "get",
+        );
+      });
+
+      test("TYPE_MISMATCH when parent is wrong type", () => {
+        const acc = accessor("items['x']");
+        expectAccessorError(
+          () => acc.getOrThrow({ items: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected array, got string",
+        );
+      });
+
+      test("returns null for missing id", () => {
+        const acc = accessor("items['missing']");
+        expect(acc.getOrThrow({ items: [{ id: "a" }] })).toBeNull();
+      });
+
+      test("returns value for found id", () => {
+        const acc = accessor("items['x']");
+        expect(acc.getOrThrow({ items: [{ id: "x", v: 1 }] })).toStrictEqual({
+          id: "x",
+          v: 1,
+        });
+      });
+    });
+
+    describe("project", () => {
+      test("MISSING_PARENT and TYPE_MISMATCH", () => {
+        const acc = accessor("a[*]");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "get",
+        );
+        expectAccessorError(
+          () => acc.getOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected array, got string",
+        );
+      });
+
+      test("returns projected values on valid array", () => {
+        const acc = accessor("a[*].b");
+        expect(acc.getOrThrow({ a: [{ b: 1 }, { b: 2 }] })).toStrictEqual([
+          1, 2,
+        ]);
+      });
+    });
+
+    describe("objectProject", () => {
+      test("MISSING_PARENT and TYPE_MISMATCH", () => {
+        const acc = accessor("@.*");
+        expectAccessorError(
+          () => acc.getOrThrow(null),
+          "MISSING_PARENT",
+          "get",
+        );
+        expectAccessorError(
+          () => acc.getOrThrow([1, 2]),
+          "TYPE_MISMATCH",
+          "get",
+          "expected object, got array",
+        );
+      });
+
+      test("returns projected values on valid object", () => {
+        const acc = accessor("@.*.name");
+        expect(
+          acc.getOrThrow({ x: { name: "a" }, y: { name: "b" } }),
+        ).toStrictEqual(["a", "b"]);
+      });
+    });
+
+    describe("filter", () => {
+      test("MISSING_PARENT and TYPE_MISMATCH", () => {
+        const acc = accessor("items[?active]");
+        expectAccessorError(
+          () => acc.getOrThrow({ items: null }),
+          "MISSING_PARENT",
+          "get",
+        );
+        expectAccessorError(
+          () => acc.getOrThrow({ items: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected array, got string",
+        );
+      });
+
+      test("returns filtered values on valid array", () => {
+        const acc = accessor("items[?active]");
+        expect(
+          acc.getOrThrow({
+            items: [
+              { id: 1, active: true },
+              { id: 2, active: false },
+            ],
+          }),
+        ).toStrictEqual([{ id: 1, active: true }]);
+      });
+    });
+
+    describe("slice", () => {
+      test("MISSING_PARENT when parent is null/undefined", () => {
+        const acc = accessor("a[1:3]");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "get",
+        );
+      });
+
+      test("TYPE_MISMATCH when parent is wrong type", () => {
+        const acc = accessor("a[1:3]");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: 42 }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected array or string, got number",
+        );
+      });
+
+      test("returns sliced array on valid array", () => {
+        const acc = accessor("a[1:3]");
+        expect(acc.getOrThrow({ a: [1, 2, 3, 4] })).toStrictEqual([2, 3]);
+      });
+
+      test("returns sliced string on valid string", () => {
+        const acc = accessor("a[1:3]");
+        expect(acc.getOrThrow({ a: "foobar" })).toBe("oo");
+      });
+    });
+
+    describe("flatten", () => {
+      test("MISSING_PARENT and TYPE_MISMATCH", () => {
+        const acc = accessor("a[]");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "get",
+        );
+        expectAccessorError(
+          () => acc.getOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected array, got string",
+        );
+      });
+
+      test("returns flattened array on valid array", () => {
+        const acc = accessor("a[]");
+        expect(acc.getOrThrow({ a: [[1, 2], [3]] })).toStrictEqual([1, 2, 3]);
+      });
+    });
+
+    describe("pipe", () => {
+      test("propagates errors from lhs", () => {
+        const acc = accessor("a.b | c");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected object, got string",
+        );
+      });
+
+      test("propagates errors from rhs", () => {
+        const acc = accessor("a | b.c");
+        expectAccessorError(
+          () => acc.getOrThrow({ a: { b: "oops" } }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected object, got string",
+        );
+      });
+
+      test("returns value on valid chain", () => {
+        const acc = accessor("a | b");
+        expect(acc.getOrThrow({ a: { b: "value" } })).toBe("value");
+      });
+    });
+  });
+
+  describe("setOrThrow / deleteOrThrow", () => {
+    describe("read-only selectors", () => {
+      test.each([
+        { expr: "!foo", construct: "not expression" },
+        { expr: "foo == `1`", construct: "comparison" },
+        { expr: "foo + `1`", construct: "arithmetic expression" },
+        { expr: "-foo", construct: "unary arithmetic expression" },
+        { expr: "foo && bar", construct: "and expression" },
+        { expr: "foo || bar", construct: "or expression" },
+        { expr: "foo ? bar : baz", construct: "ternary expression" },
+        { expr: "length(@)", construct: "function call" },
+        { expr: "&foo", construct: "expression reference" },
+        { expr: "$foo", construct: "variable reference" },
+        { expr: "let $x = foo in $x", construct: "let expression" },
+        { expr: "[foo, bar]", construct: "multi-select list" },
+        { expr: "{x: foo, y: bar}", construct: "multi-select hash" },
+        { expr: "`1`", construct: "literal" },
+        { expr: "@", construct: "current node reference" },
+        { expr: "$", construct: "root reference" },
+      ])("$expr setOrThrow/deleteOrThrow produce NOT_WRITABLE", (readOnly) => {
+        const acc = accessor(readOnly.expr);
+        const context = { foo: 1, bar: 2, baz: 3 };
+
+        expectAccessorError(
+          () => acc.setOrThrow("changed", context),
+          "NOT_WRITABLE",
+          "set",
+          `${readOnly.construct} is read-only`,
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow(context),
+          "NOT_WRITABLE",
+          "delete",
+          `${readOnly.construct} is read-only`,
+        );
+
+        const untouched = { foo: 1, bar: 2, baz: 3 };
+        acc.set("changed", untouched);
+        acc.delete(untouched);
+        expect(untouched).toStrictEqual({ foo: 1, bar: 2, baz: 3 });
+      });
+    });
+
+    describe("deep chain error propagation", () => {
+      const deepChainExpressions = [
+        "a.b.c",
+        "a.b[0]",
+        "a.b['x']",
+        "a.b[*]",
+        "a.b.*",
+        "a.b[?active]",
+        "a.b[1:3]",
+        "a.b[]",
+      ];
+
+      test.each(deepChainExpressions)(
+        "setOrThrow(%s) reports ancestor TYPE_MISMATCH from getOrThrow",
+        (expr) => {
+          const acc = accessor(expr);
+          const error = expectAccessorError(
+            () => acc.setOrThrow("x", { a: "oops" }),
+            "TYPE_MISMATCH",
+            "get",
+            "expected object, got string",
+          );
+          expect(error.path).toBe("a.b");
+        },
+      );
+
+      test.each(deepChainExpressions)(
+        "deleteOrThrow(%s) reports ancestor TYPE_MISMATCH from getOrThrow",
+        (expr) => {
+          const acc = accessor(expr);
+          const error = expectAccessorError(
+            () => acc.deleteOrThrow({ a: "oops" }),
+            "TYPE_MISMATCH",
+            "get",
+            "expected object, got string",
+          );
+          expect(error.path).toBe("a.b");
+        },
+      );
+
+      test("pipe setOrThrow propagates strict lhs traversal errors", () => {
+        const acc = accessor("a.b | c");
+        const error = expectAccessorError(
+          () => acc.setOrThrow("x", { a: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected object, got string",
+        );
+        expect(error.path).toBe("a.b");
+      });
+
+      test("pipe deleteOrThrow propagates strict lhs traversal errors", () => {
+        const acc = accessor("a.b | c");
+        const error = expectAccessorError(
+          () => acc.deleteOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "get",
+          "expected object, got string",
+        );
+        expect(error.path).toBe("a.b");
+      });
+    });
+
+    describe("identifier", () => {
+      test("TYPE_MISMATCH on non-object, success on object", () => {
+        const acc = accessor("foo");
+        expectAccessorError(
+          () => acc.setOrThrow("value", "nope"),
+          "TYPE_MISMATCH",
+          "set",
+          "expected object, got string",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow("nope"),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected object, got string",
+        );
+
+        const obj: { foo?: unknown } = { foo: "old" };
+        acc.setOrThrow("new", obj);
+        expect(obj.foo).toBe("new");
+        acc.deleteOrThrow(obj);
+        expect(obj).toStrictEqual({});
+      });
+    });
+
+    describe("fieldAccess", () => {
+      test("MISSING_PARENT, TYPE_MISMATCH, and success paths", () => {
+        const acc = accessor("a.b");
+        expectAccessorError(
+          () => acc.setOrThrow("x", { a: null }),
+          "MISSING_PARENT",
+          "set",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "delete",
+        );
+        expectAccessorError(
+          () => acc.setOrThrow("x", { a: "oops" }),
+          "TYPE_MISMATCH",
+          "set",
+          "expected object, got string",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected object, got string",
+        );
+
+        const obj = { a: { b: "old", c: 1 } };
+        acc.setOrThrow("new", obj);
+        expect(obj).toStrictEqual({ a: { b: "new", c: 1 } });
+        acc.deleteOrThrow(obj);
+        expect(obj).toStrictEqual({ a: { c: 1 } });
+      });
+    });
+
+    describe("indexAccess", () => {
+      test("MISSING_PARENT and TYPE_MISMATCH", () => {
+        const acc = accessor("a[1]");
+        expectAccessorError(
+          () => acc.setOrThrow(9, { a: null }),
+          "MISSING_PARENT",
+          "set",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "delete",
+        );
+        expectAccessorError(
+          () => acc.setOrThrow(9, { a: "oops" }),
+          "TYPE_MISMATCH",
+          "set",
+          "expected array, got string",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected array, got string",
+        );
+      });
+
+      test("INDEX_OUT_OF_BOUNDS for positive and negative indexes", () => {
+        const positive = accessor("a[10]");
+        expectAccessorError(
+          () => positive.setOrThrow(9, { a: [1, 2, 3] }),
+          "INDEX_OUT_OF_BOUNDS",
+          "set",
+        );
+        expectAccessorError(
+          () => positive.deleteOrThrow({ a: [1, 2, 3] }),
+          "INDEX_OUT_OF_BOUNDS",
+          "delete",
+        );
+
+        const negative = accessor("a[-5]");
+        expectAccessorError(
+          () => negative.setOrThrow(9, { a: [1, 2, 3] }),
+          "INDEX_OUT_OF_BOUNDS",
+          "set",
+        );
+        expectAccessorError(
+          () => negative.deleteOrThrow({ a: [1, 2, 3] }),
+          "INDEX_OUT_OF_BOUNDS",
+          "delete",
+        );
+      });
+
+      test("success path", () => {
+        const acc = accessor("a[-1]");
+        const obj = { a: [1, 2, 3] };
+        acc.setOrThrow(9, obj);
+        expect(obj.a).toStrictEqual([1, 2, 9]);
+        acc.deleteOrThrow(obj);
+        expect(obj.a).toStrictEqual([1, 2]);
+      });
+    });
+
+    describe("idAccess", () => {
+      test("MISSING_PARENT and TYPE_MISMATCH", () => {
+        const acc = accessor("items['x']");
+        expectAccessorError(
+          () => acc.setOrThrow({ id: "x" }, { items: null }),
+          "MISSING_PARENT",
+          "set",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ items: null }),
+          "MISSING_PARENT",
+          "delete",
+        );
+        expectAccessorError(
+          () => acc.setOrThrow({ id: "x" }, { items: "oops" }),
+          "TYPE_MISMATCH",
+          "set",
+          "expected array, got string",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ items: "oops" }),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected array, got string",
+        );
+      });
+
+      test("MISSING_ID and success path", () => {
+        const missing = accessor("items['x']");
+        const missingContext = { items: [{ id: "a", v: 1 }] };
+        expectAccessorError(
+          () => missing.setOrThrow({ id: "x", v: 9 }, missingContext),
+          "MISSING_ID",
+          "set",
+        );
+        expectAccessorError(
+          () => missing.deleteOrThrow(missingContext),
+          "MISSING_ID",
+          "delete",
+        );
+
+        const found = accessor("items['x']");
+        const obj = {
+          items: [
+            { id: "a", v: 1 },
+            { id: "x", v: 2 },
+          ],
+        };
+        found.setOrThrow({ id: "x", v: 9 }, obj);
+        expect(obj.items).toStrictEqual([
+          { id: "a", v: 1 },
+          { id: "x", v: 9 },
+        ]);
+        found.deleteOrThrow(obj);
+        expect(obj.items).toStrictEqual([{ id: "a", v: 1 }]);
+      });
+    });
+
+    describe("project", () => {
+      test("MISSING_PARENT and TYPE_MISMATCH", () => {
+        const acc = accessor("a[*]");
+        expectAccessorError(
+          () => acc.setOrThrow([1], { a: null }),
+          "MISSING_PARENT",
+          "set",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "delete",
+        );
+        expectAccessorError(
+          () => acc.setOrThrow([1], { a: "oops" }),
+          "TYPE_MISMATCH",
+          "set",
+          "expected array, got string",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected array, got string",
+        );
+      });
+
+      test("success path with and without sub-projection", () => {
+        const plain = accessor("a[*]");
+        const plainObj = { a: [1, 2, 3] };
+        plain.setOrThrow([9], plainObj);
+        expect(plainObj.a).toStrictEqual([9]);
+        plain.deleteOrThrow(plainObj);
+        expect(plainObj.a).toStrictEqual([]);
+
+        const projected = accessor("a[*].b");
+        const projectedObj = { a: [{ b: 1 }, { b: 2 }] };
+        projected.setOrThrow(9, projectedObj);
+        expect(projectedObj.a).toStrictEqual([{ b: 9 }, { b: 9 }]);
+        projected.deleteOrThrow(projectedObj);
+        expect(projectedObj.a).toStrictEqual([{}, {}]);
+      });
+    });
+
+    describe("objectProject", () => {
+      test("MISSING_PARENT and TYPE_MISMATCH", () => {
+        const acc = accessor("@.*");
+        expectAccessorError(
+          () => acc.setOrThrow(1, null),
+          "MISSING_PARENT",
+          "set",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow(null),
+          "MISSING_PARENT",
+          "delete",
+        );
+        expectAccessorError(
+          () => acc.setOrThrow(1, [1, 2]),
+          "TYPE_MISMATCH",
+          "set",
+          "expected object, got array",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow([1, 2]),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected object, got array",
+        );
+      });
+
+      test("success path with and without sub-projection", () => {
+        const plain = accessor("@.*");
+        const plainObj = { a: 1, b: 2 };
+        plain.setOrThrow(9, plainObj);
+        expect(plainObj).toStrictEqual({ a: 9, b: 9 });
+        plain.deleteOrThrow(plainObj);
+        expect(plainObj).toStrictEqual({});
+
+        const projected = accessor("@.*.name");
+        const projectedObj = {
+          x: { name: "alice" },
+          y: { name: "bob" },
+        };
+        projected.setOrThrow("updated", projectedObj);
+        expect(projectedObj).toStrictEqual({
+          x: { name: "updated" },
+          y: { name: "updated" },
+        });
+        projected.deleteOrThrow(projectedObj);
+        expect(projectedObj).toStrictEqual({
+          x: {},
+          y: {},
+        });
+      });
+    });
+
+    describe("filter", () => {
+      test("MISSING_PARENT, TYPE_MISMATCH, and success paths", () => {
+        const acc = accessor("items[?active]");
+        expectAccessorError(
+          () => acc.setOrThrow([{ active: true }], { items: null }),
+          "MISSING_PARENT",
+          "set",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ items: null }),
+          "MISSING_PARENT",
+          "delete",
+        );
+        expectAccessorError(
+          () => acc.setOrThrow([{ active: true }], { items: "oops" }),
+          "TYPE_MISMATCH",
+          "set",
+          "expected array, got string",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ items: "oops" }),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected array, got string",
+        );
+
+        const obj = {
+          items: [
+            { id: 1, active: true },
+            { id: 2, active: false },
+          ],
+        };
+        acc.setOrThrow([{ id: 3, active: true }], obj);
+        expect(obj.items).toStrictEqual([
+          { id: 2, active: false },
+          { id: 3, active: true },
+        ]);
+        acc.deleteOrThrow(obj);
+        expect(obj.items).toStrictEqual([{ id: 2, active: false }]);
+      });
+    });
+
+    describe("slice", () => {
+      test("MISSING_PARENT, TYPE_MISMATCH, and success paths", () => {
+        const acc = accessor("a[1:3]");
+        expectAccessorError(
+          () => acc.setOrThrow([9], { a: null }),
+          "MISSING_PARENT",
+          "set",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "delete",
+        );
+        expectAccessorError(
+          () => acc.setOrThrow([9], { a: "abc" }),
+          "TYPE_MISMATCH",
+          "set",
+          "expected array, got string",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: "abc" }),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected array, got string",
+        );
+
+        const obj = { a: [1, 2, 3, 4] };
+        acc.setOrThrow([9], obj);
+        expect(obj.a).toStrictEqual([1, 4, 9]);
+        acc.deleteOrThrow(obj);
+        expect(obj.a).toStrictEqual([1]);
+      });
+    });
+
+    describe("flatten", () => {
+      test("MISSING_PARENT, TYPE_MISMATCH, and success paths", () => {
+        const acc = accessor("a[]");
+        expectAccessorError(
+          () => acc.setOrThrow([9], { a: null }),
+          "MISSING_PARENT",
+          "set",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: null }),
+          "MISSING_PARENT",
+          "delete",
+        );
+        expectAccessorError(
+          () => acc.setOrThrow([9], { a: "oops" }),
+          "TYPE_MISMATCH",
+          "set",
+          "expected array, got string",
+        );
+        expectAccessorError(
+          () => acc.deleteOrThrow({ a: "oops" }),
+          "TYPE_MISMATCH",
+          "delete",
+          "expected array, got string",
+        );
+
+        const obj = { a: [[1], [2]] };
+        acc.setOrThrow([9], obj);
+        expect(obj.a).toStrictEqual([9]);
+        acc.deleteOrThrow(obj);
+        expect(obj.a).toStrictEqual([]);
+      });
+    });
+
+    describe("pipe", () => {
+      test("delegates RHS errors and success path", () => {
+        const acc = accessor("a | b");
+        const setError = expectAccessorError(
+          () => acc.setOrThrow("x", { a: null }),
+          "TYPE_MISMATCH",
+          "set",
+        );
+        expect(setError.path).toBe("b");
+
+        const deleteError = expectAccessorError(
+          () => acc.deleteOrThrow({ a: null }),
+          "TYPE_MISMATCH",
+          "delete",
+        );
+        expect(deleteError.path).toBe("b");
+
+        const obj = { a: { b: "old", c: 1 } };
+        acc.setOrThrow("new", obj);
+        expect(obj.a).toStrictEqual({ b: "new", c: 1 });
+        acc.deleteOrThrow(obj);
+        expect(obj.a).toStrictEqual({ c: 1 });
+      });
+    });
+  });
+
   // ============================================================
   // Complex integration tests (adapted from original)
   // ============================================================
@@ -1631,21 +2434,6 @@ describe("AccessorOptions", () => {
       functionProvider: registry,
     });
     expect(acc.get(5)).toBe(10);
-  });
-
-  test("custom function provider works with accessWithJsonSelector", () => {
-    const registry = new FunctionRegistry();
-    registry.register({
-      name: "double",
-      signatures: [[arg("value", NUMBER_TYPE)]],
-      handler: ({ args }) => Number(args[0]) * 2,
-    });
-
-    const selector = parseJsonSelector("double(@)");
-    const acc = accessWithJsonSelector(selector, 7, 7, {
-      functionProvider: registry,
-    });
-    expect(acc.get()).toBe(14);
   });
 
   test("accessor defaults to builtins when no options provided", () => {

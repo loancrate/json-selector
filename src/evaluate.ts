@@ -17,6 +17,7 @@ import type { EvaluationContext } from "./evaluation-context";
 import { getBuiltinFunctionProvider } from "./functions/builtins";
 import { callFunction } from "./functions/provider";
 import {
+  describeValueType,
   findId,
   getField,
   getIndex,
@@ -242,16 +243,6 @@ function ensureNumber(
     throw new NotANumberError(operator, operand, actualType);
   }
   return value;
-}
-
-function describeValueType(value: unknown): string {
-  if (value === null) {
-    return "null";
-  }
-  if (isArray(value)) {
-    return "array";
-  }
-  return typeof value;
 }
 
 export function performArithmetic(
