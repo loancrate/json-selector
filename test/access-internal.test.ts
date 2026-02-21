@@ -1,4 +1,4 @@
-import { invertedSlice } from "../src/access-internal";
+import { invertedSlice } from "../src/access-util";
 
 describe("invertedSlice", () => {
   test("positive step: returns elements outside [start, end)", () => {

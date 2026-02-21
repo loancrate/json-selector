@@ -16,10 +16,10 @@ import { isWhitespace, Lexer } from "./lexer";
 import { EOF_DESCRIPTION, Token, TOKEN_LIMIT, TokenType } from "./token";
 
 // Pre-computed singleton AST nodes
-const CURRENT_NODE: Readonly<JsonSelectorCurrent> = Object.freeze({
+export const CURRENT_NODE: Readonly<JsonSelectorCurrent> = Object.freeze({
   type: "current",
 });
-const ROOT_NODE: Readonly<JsonSelectorRoot> = Object.freeze({
+export const ROOT_NODE: Readonly<JsonSelectorRoot> = Object.freeze({
   type: "root",
 });
 

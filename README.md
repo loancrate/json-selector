@@ -7,7 +7,7 @@ Key capabilities:
 - **Parse** expression strings into a typed AST
 - **Evaluate** selectors against JSON data
 - **Format** ASTs back into expression strings (round-trip safe)
-- **Read/write/delete** values via selector-based accessors
+- **Read/write/delete** values via selector-based accessors, including strict `*OrThrow` variants
 - **Extend** with custom functions via a pluggable registry
 
 ## Installation
@@ -43,6 +43,8 @@ console.log(obj.foo.bar[0].value); // 2
 accessor.delete();
 console.log(obj.foo.bar[0].value); // undefined
 ```
+
+Use `getOrThrow()`, `setOrThrow()`, and `deleteOrThrow()` when you want accessor failures surfaced as `AccessorError` (instead of `null` reads or no-op writes/deletes).
 
 ## Documentation
 

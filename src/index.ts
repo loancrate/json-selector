@@ -1,5 +1,6 @@
 export * from "./access";
 export * from "./ast";
+export * from "./bind";
 export * from "./errors";
 export * from "./evaluation-context";
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- re-exporting; only one overload is deprecated

@@ -8,6 +8,7 @@ import {
   JsonSelectorSyntaxError,
   JsonSelectorTypeError,
   NotANumberError,
+  AccessorError,
   UnexpectedCharacterError,
   UnexpectedTokenError,
   UnknownFunctionError,
@@ -53,6 +54,19 @@ describe("error hierarchy", () => {
     );
     expect(error).toBeInstanceOf(UnknownFunctionError);
     expect(error).toBeInstanceOf(FunctionError);
+    expect(error).toBeInstanceOf(JsonSelectorRuntimeError);
+    expect(error).toBeInstanceOf(JsonSelectorError);
+    expect(error).toBeInstanceOf(Error);
+  });
+
+  test("accessor errors inherit from runtime and base classes", () => {
+    const error = new AccessorError(
+      "TYPE_MISMATCH",
+      "foo",
+      "set",
+      "test message",
+    );
+    expect(error).toBeInstanceOf(AccessorError);
     expect(error).toBeInstanceOf(JsonSelectorRuntimeError);
     expect(error).toBeInstanceOf(JsonSelectorError);
     expect(error).toBeInstanceOf(Error);

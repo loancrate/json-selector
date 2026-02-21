@@ -76,3 +76,13 @@ export function formatRawString(s: string): string {
   // eslint-disable-next-line no-control-regex
   return `'${s.replace(/[\0-\x1F]/g, "").replace(/['\\]/g, (c) => `\\${c}`)}'`;
 }
+
+export function describeValueType(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  if (isArray(value)) {
+    return "array";
+  }
+  return typeof value;
+}

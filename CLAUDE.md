@@ -173,11 +173,12 @@ Benchmark implementation is modular:
 - Helper functions: `project()`, `filter()`, `slice()`, `flatten()`, `compare()`
 - Uses visitor pattern to process AST nodes recursively
 
-**Accessors (`src/access.ts`)**
+**Accessors (`src/access.ts` + `src/bind.ts`)**
 
 - `makeJsonSelectorAccessor()`: creates unbound accessor from selector
-- `accessWithJsonSelector()`: creates bound accessor for specific context
-- Accessors provide `get()`, `set()`, and `delete()` operations
+- `bindJsonSelectorAccessor()`: binds an unbound accessor to specific context/root context
+- `accessWithJsonSelector()`: one-step convenience that creates and binds an accessor
+- Accessors provide `get()`/`getOrThrow()`, `set()`/`setOrThrow()`, and `delete()`/`deleteOrThrow()` operations
 - Read-only accessors for non-modifiable expressions (not, compare, and, or)
 - Complex set/delete logic for projections, filters, and slices
 
@@ -205,13 +206,14 @@ Benchmark implementation is modular:
 - Parse errors inherit from `JsonSelectorSyntaxError` and include structured fields `expression` and `offset`
 - Runtime/evaluation errors inherit from `JsonSelectorRuntimeError`
 - Type mismatch runtime errors inherit from `JsonSelectorTypeError` (for example `NotANumberError`, `DivideByZeroError`)
+- Throwing accessor operations use `AccessorError` with structured codes (`NOT_WRITABLE`, `MISSING_PARENT`, `TYPE_MISMATCH`, `INDEX_OUT_OF_BOUNDS`, `MISSING_ID`)
 - Function validation/call errors inherit from `FunctionError`, which inherits from `JsonSelectorRuntimeError`
 - Prefer the most specific error class (`UnexpectedCharacterError`, `UnexpectedTokenError`, `UnexpectedEndOfInputError`, etc.) and avoid throwing generic `Error`
 
 **Public API (`src/index.ts`)**
 
 - Exports all public functions and types
-- Main entry points: `parseJsonSelector()`, `evaluateJsonSelector()`, `accessWithJsonSelector()`, `formatJsonSelector()`
+- Main entry points: `parseJsonSelector()`, `evaluateJsonSelector()`, `makeJsonSelectorAccessor()`, `bindJsonSelectorAccessor()`, `accessWithJsonSelector()`, `formatJsonSelector()`
 - Compatibility option types are public: `ParserOptions` (parse-time) and `EvaluationContext` (evaluation-time)
 
 ### Engineering Guardrails
@@ -239,10 +241,13 @@ The library adds two LoanCrate-specific extensions on top of JMESPath standards:
 
 Accessors are created using a two-phase approach:
 
-1. **Unbound accessor**: Created from selector AST, contains logic for all operations
-2. **Bound accessor**: Binds unbound accessor to specific context object
+1. **Unbound accessor**: Created from selector AST (`makeJsonSelectorAccessor`), contains logic for all operations
+2. **Bound accessor**: Binds unbound accessor to specific context/root context (`bindJsonSelectorAccessor`)
 
 For write operations on projections/filters/slices, the library implements "inverted" operations that preserve non-matching elements while replacing matching ones.
+
+- `setOrThrow`/`deleteOrThrow` must use `getOrThrow` for ancestor traversal so intermediate failures surface as `TYPE_MISMATCH` at the failing node path with `operation: "get"`.
+- `setOrThrow`/`deleteOrThrow` on projections are intentionally non-atomic; partial in-place mutation can occur before a thrown error.
 
 ## Build Output
 
