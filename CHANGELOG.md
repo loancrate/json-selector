@@ -1,5 +1,11 @@
 # @loancrate/json-selector
 
+## 5.2.0
+
+### Minor Changes
+
+- Add `lowNotPrecedence` parser option that makes `!` (logical NOT) bind below member access, brackets, flatten, and filter operators, matching JavaScript's precedence rules. When enabled, `!foo.bar` parses as `!(foo.bar)` instead of the default `(!foo).bar`. The default (`false`) preserves existing JMESPath-standard behavior.
+
 ## 5.1.0
 
 ### Minor Changes
