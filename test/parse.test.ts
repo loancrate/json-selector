@@ -163,6 +163,216 @@ describe("parseJsonSelector", () => {
     });
   });
 
+  describe("lowNotPrecedence", () => {
+    const identifier = (id: string): JsonSelector => ({
+      type: "identifier",
+      id,
+    });
+
+    const current = (): JsonSelector => ({ type: "current" });
+
+    const not = (expression: JsonSelector): JsonSelector => ({
+      type: "not",
+      expression,
+    });
+
+    const fieldAccess = (
+      expression: JsonSelector,
+      field: string,
+    ): JsonSelector => ({
+      type: "fieldAccess",
+      expression,
+      field,
+    });
+
+    const indexAccess = (
+      expression: JsonSelector,
+      index: number,
+    ): JsonSelector => ({
+      type: "indexAccess",
+      expression,
+      index,
+    });
+
+    const flatten = (expression: JsonSelector): JsonSelector => ({
+      type: "flatten",
+      expression,
+    });
+
+    const filter = (
+      expression: JsonSelector,
+      condition: JsonSelector,
+    ): JsonSelector => ({
+      type: "filter",
+      expression,
+      condition,
+    });
+
+    const project = (
+      expression: JsonSelector,
+      projection: JsonSelector,
+    ): JsonSelector => ({
+      type: "project",
+      expression,
+      projection,
+    });
+
+    const arithmetic = (
+      operator: "+" | "*",
+      lhs: JsonSelector,
+      rhs: JsonSelector,
+    ): JsonSelector => ({
+      type: "arithmetic",
+      operator,
+      lhs,
+      rhs,
+    });
+
+    const and = (lhs: JsonSelector, rhs: JsonSelector): JsonSelector => ({
+      type: "and",
+      lhs,
+      rhs,
+    });
+
+    const compareEq = (lhs: JsonSelector, rhs: JsonSelector): JsonSelector => ({
+      type: "compare",
+      operator: "==",
+      lhs,
+      rhs,
+    });
+
+    const changedCases: Array<{
+      expression: string;
+      defaultAst: JsonSelector;
+      lowAst: JsonSelector;
+    }> = [
+      {
+        expression: "!foo.bar",
+        defaultAst: fieldAccess(not(identifier("foo")), "bar"),
+        lowAst: not(fieldAccess(identifier("foo"), "bar")),
+      },
+      {
+        expression: "!foo.bar.baz",
+        defaultAst: fieldAccess(
+          fieldAccess(not(identifier("foo")), "bar"),
+          "baz",
+        ),
+        lowAst: not(fieldAccess(fieldAccess(identifier("foo"), "bar"), "baz")),
+      },
+      {
+        expression: "!foo[0].bar",
+        defaultAst: fieldAccess(not(indexAccess(identifier("foo"), 0)), "bar"),
+        lowAst: not(fieldAccess(indexAccess(identifier("foo"), 0), "bar")),
+      },
+      {
+        expression: "!!foo.bar",
+        defaultAst: fieldAccess(not(not(identifier("foo"))), "bar"),
+        lowAst: not(not(fieldAccess(identifier("foo"), "bar"))),
+      },
+      {
+        expression: "!foo.bar + baz",
+        defaultAst: arithmetic(
+          "+",
+          fieldAccess(not(identifier("foo")), "bar"),
+          identifier("baz"),
+        ),
+        lowAst: arithmetic(
+          "+",
+          not(fieldAccess(identifier("foo"), "bar")),
+          identifier("baz"),
+        ),
+      },
+      {
+        expression: "!foo[]",
+        defaultAst: flatten(not(identifier("foo"))),
+        lowAst: not(flatten(identifier("foo"))),
+      },
+      {
+        expression: "!foo[].bar",
+        defaultAst: project(
+          flatten(not(identifier("foo"))),
+          fieldAccess(current(), "bar"),
+        ),
+        lowAst: not(
+          project(flatten(identifier("foo")), fieldAccess(current(), "bar")),
+        ),
+      },
+      {
+        expression: "!foo[?bar].baz",
+        defaultAst: project(
+          filter(not(identifier("foo")), identifier("bar")),
+          fieldAccess(current(), "baz"),
+        ),
+        lowAst: not(
+          project(
+            filter(identifier("foo"), identifier("bar")),
+            fieldAccess(current(), "baz"),
+          ),
+        ),
+      },
+    ];
+
+    test.each(changedCases)(
+      "keeps the default parse for $expression when disabled",
+      ({ expression, defaultAst }) => {
+        expect(parseJsonSelector(expression)).toStrictEqual<JsonSelector>(
+          defaultAst,
+        );
+      },
+    );
+
+    test.each(changedCases)(
+      "extends NOT through access operators for $expression when enabled",
+      ({ expression, lowAst }) => {
+        expect(
+          parseJsonSelector(expression, { lowNotPrecedence: true }),
+        ).toStrictEqual<JsonSelector>(lowAst);
+      },
+    );
+
+    const unchangedCases: Array<{
+      expression: string;
+      expected: JsonSelector;
+    }> = [
+      {
+        expression: "!foo[0]",
+        expected: not(indexAccess(identifier("foo"), 0)),
+      },
+      {
+        expression: "!foo[*]",
+        expected: not(project(identifier("foo"), current())),
+      },
+      {
+        expression: "!a * b",
+        expected: arithmetic("*", not(identifier("a")), identifier("b")),
+      },
+      {
+        expression: "!a + b",
+        expected: arithmetic("+", not(identifier("a")), identifier("b")),
+      },
+      {
+        expression: "!a && b",
+        expected: and(not(identifier("a")), identifier("b")),
+      },
+      {
+        expression: "!a == b",
+        expected: compareEq(not(identifier("a")), identifier("b")),
+      },
+    ];
+
+    test.each(unchangedCases)(
+      "does not change the parse for $expression",
+      ({ expression, expected }) => {
+        expect(parseJsonSelector(expression)).toStrictEqual<JsonSelector>(
+          expected,
+        );
+        expect(
+          parseJsonSelector(expression, { lowNotPrecedence: true }),
+        ).toStrictEqual<JsonSelector>(expected);
+      },
+    );
+  });
+
   describe("ID access", () => {
     test("id access after field access", () => {
       expect(

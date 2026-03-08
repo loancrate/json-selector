@@ -31,6 +31,7 @@ const BP_AND = 4;
 const BP_COMPARE = 5;
 const BP_ADD = 6;
 const BP_MUL = 7;
+const BP_LOW_NOT = 8;
 const BP_FLATTEN = 9;
 const BP_FILTER = 21;
 const BP_DOT = 40;
@@ -92,6 +93,8 @@ export interface ParserOptions {
   strictJsonLiterals?: boolean;
   /** Enables backslash escape in raw strings (both \' and \\ are unescaped). Defaults to true. */
   rawStringBackslashEscape?: boolean;
+  /** Makes NOT (!) bind below member access, brackets, flatten, and filter (but above arithmetic). Default: false. */
+  lowNotPrecedence?: boolean;
 }
 
 /**
@@ -106,6 +109,7 @@ export class Parser {
   private readonly input: string;
   private readonly lexer: Lexer;
   private readonly strictJsonLiterals: boolean;
+  private readonly notBindingPower: number;
 
   constructor(input: string, options?: ParserOptions) {
     this.input = input;
@@ -113,6 +117,8 @@ export class Parser {
       rawStringBackslashEscape: options?.rawStringBackslashEscape,
     });
     this.strictJsonLiterals = options?.strictJsonLiterals === true;
+    this.notBindingPower =
+      options?.lowNotPrecedence === true ? BP_LOW_NOT : BP_NOT;
   }
 
   /**
@@ -248,7 +254,7 @@ export class Parser {
         this.lexer.advance();
         return {
           type: "not",
-          expression: this.expression(BP_NOT),
+          expression: this.expression(this.notBindingPower),
         };
 
       case TokenType.PLUS:
