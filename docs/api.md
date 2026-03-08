@@ -72,11 +72,11 @@ Parses an expression string into an AST. Throws a `JsonSelectorSyntaxError` subc
 
 **`ParserOptions`**
 
-| Field                      | Type      | Default | Description                                                                        |
-| -------------------------- | --------- | ------- | ---------------------------------------------------------------------------------- |
-| `strictJsonLiterals`       | `boolean` | `false` | Require valid JSON in backtick literals; throw instead of falling back to a string |
-| `rawStringBackslashEscape` | `boolean` | `true`  | Enable backslash escape in raw strings (both `\'` and `\\` are unescaped)          |
-| `lowNotPrecedence`         | `boolean` | `false` | Make `!` bind below member access, matching JavaScript precedence                  |
+| Field                      | Type      | Default | Description                                                                                  |
+| -------------------------- | --------- | ------- | -------------------------------------------------------------------------------------------- |
+| `strictJsonLiterals`       | `boolean` | `false` | Require valid JSON in backtick literals; throw instead of falling back to a string           |
+| `rawStringBackslashEscape` | `boolean` | `true`  | Enable backslash escape in raw strings (both `\'` and `\\` are unescaped)                    |
+| `lowNotPrecedence`         | `boolean` | `false` | Make `!` bind below member access, matching JavaScript precedence (restores pre-v4 behavior) |
 
 ### `evaluateJsonSelector`
 

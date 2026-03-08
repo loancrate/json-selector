@@ -501,11 +501,11 @@ The parser resolves ambiguity with negative array indices: `-` is always tokeniz
 
 Four parser/evaluation options control standards-compliance behavior:
 
-| Option                     | Scope      | Default | Effect                                                                                      |
-| -------------------------- | ---------- | ------- | ------------------------------------------------------------------------------------------- |
-| `strictJsonLiterals`       | Parser     | `false` | Require valid JSON in backtick literals; throw instead of falling back to a string          |
-| `rawStringBackslashEscape` | Parser     | `true`  | Enable backslash escape in raw strings (both `\'` and `\\` are unescaped)                   |
-| `lowNotPrecedence`         | Parser     | `false` | Make `!` extend through access operators (like JavaScript), instead of stopping immediately |
-| `evaluateNullMultiSelect`  | Evaluation | `true`  | Evaluate multi-select expressions on `null` context instead of short-circuiting to `null`   |
+| Option                     | Scope      | Default | Effect                                                                                                                 |
+| -------------------------- | ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `strictJsonLiterals`       | Parser     | `false` | Require valid JSON in backtick literals; throw instead of falling back to a string                                     |
+| `rawStringBackslashEscape` | Parser     | `true`  | Enable backslash escape in raw strings (both `\'` and `\\` are unescaped)                                              |
+| `lowNotPrecedence`         | Parser     | `false` | Make `!` extend through access operators (like JavaScript), instead of stopping immediately (restores pre-v4 behavior) |
+| `evaluateNullMultiSelect`  | Evaluation | `true`  | Evaluate multi-select expressions on `null` context instead of short-circuiting to `null`                              |
 
 Default behavior is permissive (backtick fallback enabled, backslash escapes enabled, null multi-select evaluation enabled). For strict JMESPath Community Edition compliance, set `strictJsonLiterals: true`. For original JMESPath compatibility, set `rawStringBackslashEscape: false` and `evaluateNullMultiSelect: false`.
