@@ -26,10 +26,10 @@ Precedence is numbered 1 (tightest) through 8 (loosest). Prefix and postfix oper
 
 **Prefix operators** apply to the expression immediately to their right:
 
-| Group                         | Element                               | Syntax           | Binding                                   |
-| ----------------------------- | ------------------------------------- | ---------------- | ----------------------------------------- |
-| [Logical](#logical-operators) | [Logical NOT](#logical-not)           | `!expr`          | Immediate operand only: `!a.b` = `(!a).b` |
-| [Arithmetic](#arithmetic)     | [Unary plus/minus](#unary-arithmetic) | `+expr`, `-expr` | Through access: `-a.b` = `-(a.b)`         |
+| Group                         | Element                               | Syntax           | Binding                                                                                                    |
+| ----------------------------- | ------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| [Logical](#logical-operators) | [Logical NOT](#logical-not)           | `!expr`          | Immediate operand only by default: `!a.b` = `(!a).b`<br>With `lowNotPrecedence` enabled: `!a.b` = `!(a.b)` |
+| [Arithmetic](#arithmetic)     | [Unary plus/minus](#unary-arithmetic) | `+expr`, `-expr` | Through access: `-a.b` = `-(a.b)`                                                                          |
 
 **Postfix / access operators** chain left-to-right and bind tighter than all binary operators:
 
@@ -359,7 +359,9 @@ Numeric ordering. Both operands must be numbers. If either operand is not a numb
 
 Returns `true` if `expr` is falsy, `false` otherwise. See [truthiness](#filter-projection) for the definition of falsy values.
 
-`!` binds to the immediate next operand only — it does not extend through access operators. `!foo.bar` parses as `(!foo).bar`, not `!(foo.bar)`. Use parentheses for the latter: `!(foo.bar)`.
+`!` binds to the immediate next operand only by default — it does not extend through access operators. `!foo.bar` parses as `(!foo).bar`, not `!(foo.bar)`. Use parentheses for the latter: `!(foo.bar)`.
+
+With `lowNotPrecedence` enabled, `!` binds below member access, bracket access, flatten, and filter (like JavaScript's `!`), so `!foo.bar` parses as `!(foo.bar)`.
 
 ### Logical AND
 
@@ -497,12 +499,13 @@ The parser resolves ambiguity with negative array indices: `-` is always tokeniz
 
 ## Legacy Compatibility
 
-Three parser/evaluation options control standards-compliance behavior:
+Four parser/evaluation options control standards-compliance behavior:
 
-| Option                     | Scope      | Default | Effect                                                                                    |
-| -------------------------- | ---------- | ------- | ----------------------------------------------------------------------------------------- |
-| `strictJsonLiterals`       | Parser     | `false` | Require valid JSON in backtick literals; throw instead of falling back to a string        |
-| `rawStringBackslashEscape` | Parser     | `true`  | Enable backslash escape in raw strings (both `\'` and `\\` are unescaped)                 |
-| `evaluateNullMultiSelect`  | Evaluation | `true`  | Evaluate multi-select expressions on `null` context instead of short-circuiting to `null` |
+| Option                     | Scope      | Default | Effect                                                                                      |
+| -------------------------- | ---------- | ------- | ------------------------------------------------------------------------------------------- |
+| `strictJsonLiterals`       | Parser     | `false` | Require valid JSON in backtick literals; throw instead of falling back to a string          |
+| `rawStringBackslashEscape` | Parser     | `true`  | Enable backslash escape in raw strings (both `\'` and `\\` are unescaped)                   |
+| `lowNotPrecedence`         | Parser     | `false` | Make `!` extend through access operators (like JavaScript), instead of stopping immediately |
+| `evaluateNullMultiSelect`  | Evaluation | `true`  | Evaluate multi-select expressions on `null` context instead of short-circuiting to `null`   |
 
 Default behavior is permissive (backtick fallback enabled, backslash escapes enabled, null multi-select evaluation enabled). For strict JMESPath Community Edition compliance, set `strictJsonLiterals: true`. For original JMESPath compatibility, set `rawStringBackslashEscape: false` and `evaluateNullMultiSelect: false`.
