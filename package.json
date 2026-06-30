@@ -85,11 +85,26 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.48.0"
   },
+  "overrides": {
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "^3.15.0"
+    },
+    "read-yaml-file": {
+      "js-yaml": "^3.15.0"
+    },
+    "js-yaml": "^4.1.2",
+    "@babel/core": "^7.29.1"
+  },
   "lint-staged": {
     "*.{ts,md}": "prettier --check",
     "*.ts": "eslint"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "allowScripts": {
+    "esbuild@0.27.2": true,
+    "fsevents@2.3.3": true,
+    "unrs-resolver@1.11.1": true
   }
 }
