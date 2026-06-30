@@ -1,4 +1,10 @@
 {
   "extends": "@tsconfig/recommended/tsconfig.json",
+  "compilerOptions": {
+    // @tsconfig/recommended targets es2016; with Node >=22 we can target a
+    // modern ES version, which also provides lib types (e.g. Array.prototype.at)
+    // that newer @types/node no longer supplies implicitly.
+    "target": "es2022"
+  },
   "exclude": ["node_modules", "dist", "coverage", "test-results"]
 }
