@@ -552,6 +552,20 @@ describe("compare", () => {
     ] as const)("%s of %p and %p is %s", (operator, lv, rv, expected) => {
       expect(compare(lv, rv, operator)).toBe(expected);
     });
+
+    // Ordering is by Unicode code point, not UTF-16 code unit. A supplementary-
+    // plane character (U+10000, code point 0x10000) is greater than a BMP
+    // character (U+F000, code point 0xF000). Native JS `<` would disagree,
+    // because U+10000's leading surrogate (0xD800) sorts below 0xF000.
+    const astral = String.fromCodePoint(0x10000); // surrogate pair D800 DC00
+    const bmp = String.fromCodePoint(0xf000); // single BMP code unit
+    test("orders supplementary-plane above BMP by code point", () => {
+      expect(compare(astral, bmp, ">")).toBe(true);
+      expect(compare(astral, bmp, "<")).toBe(false);
+      expect(compare(bmp, astral, "<")).toBe(true);
+      // Guard: this is the ordering native JS `<` would produce (the wrong one).
+      expect(astral < bmp).toBe(true);
+    });
   });
 
   describe("mixed and non-orderable operands yield null", () => {

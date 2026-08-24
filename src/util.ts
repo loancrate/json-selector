@@ -77,6 +77,29 @@ export function formatRawString(s: string): string {
   return `'${s.replace(/[\0-\x1F]/g, "").replace(/['\\]/g, (c) => `\\${c}`)}'`;
 }
 
+/**
+ * Compares two strings by their Unicode code points per the JMESPath sort ordering.
+ * Returns a negative number if `a` sorts before `b`, a positive number if after,
+ * or 0 if equal.
+ */
+export function compareCodePoints(a: string, b: string): number {
+  let ai = 0;
+  let bi = 0;
+  while (ai < a.length && bi < b.length) {
+    // Safe: loop condition guarantees both indices are in range for codePointAt.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const acp = a.codePointAt(ai)!;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const bcp = b.codePointAt(bi)!;
+    if (acp !== bcp) {
+      return acp - bcp;
+    }
+    ai += acp > 0xffff ? 2 : 1;
+    bi += bcp > 0xffff ? 2 : 1;
+  }
+  return ai === a.length ? (bi === b.length ? 0 : -1) : 1;
+}
+
 export function describeValueType(value: unknown): string {
   if (value === null) {
     return "null";

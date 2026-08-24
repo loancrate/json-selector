@@ -347,9 +347,9 @@ Deep equality comparison using structural equality. Works on any types — two v
 
 **Syntax**: `a < b`, `a <= b`, `a > b`, `a >= b`
 
-Ordered comparison. Both operands must be numbers, or both must be strings. Numbers compare numerically and strings compare lexicographically using JavaScript's native string ordering (by UTF-16 code unit). Any other combination — including mixed number/string operands, or a `null`, boolean, array, or object operand — yields `null` (not an error).
+Ordered comparison. Both operands must be numbers, or both must be strings. Numbers compare numerically and strings compare lexicographically by Unicode code point. Any other combination — including mixed number/string operands, or a `null`, boolean, array, or object operand — yields `null` (not an error).
 
-> **Note:** String ordering is a LoanCrate extension over standard JMESPath, which restricts ordered comparison to numbers and returns `null` for all other types. The spec does this for cross-language determinism (string ordering varies by code-unit vs. code-point comparison, Unicode collation, and locale); this library is JavaScript-only and always uses JS string ordering, so results are deterministic.
+> **Note:** String ordering is a LoanCrate extension over standard JMESPath, which restricts ordered comparison to numbers and returns `null` for all other types. The spec does this for cross-language determinism (string ordering varies by code-unit vs. code-point comparison, Unicode collation, and locale); this library fixes the ordering to Unicode code point so it is deterministic and consistent with `sort`.
 
 ---
 
