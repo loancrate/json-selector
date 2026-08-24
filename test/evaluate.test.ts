@@ -1,4 +1,4 @@
-import { evaluateJsonSelector, project } from "../src/evaluate";
+import { compare, evaluateJsonSelector, project } from "../src/evaluate";
 import { getBuiltinFunctionProvider } from "../src/functions/builtins";
 import { parseJsonSelector } from "../src/parse";
 
@@ -508,6 +508,70 @@ describe("evaluate", () => {
           e: "e",
         }),
       ).toBe("e");
+    });
+  });
+});
+
+describe("compare", () => {
+  describe("number operands", () => {
+    test.each([
+      ["<", 1, 2, true],
+      ["<", 2, 1, false],
+      ["<=", 2, 2, true],
+      ["<=", 3, 2, false],
+      [">", 2, 1, true],
+      [">", 1, 2, false],
+      [">=", 2, 2, true],
+      [">=", 1, 2, false],
+    ] as const)("%s of %d and %d is %s", (operator, lv, rv, expected) => {
+      expect(compare(lv, rv, operator)).toBe(expected);
+    });
+  });
+
+  describe("string operands (lexicographic)", () => {
+    test.each([
+      ["<", "a", "b", true],
+      ["<", "b", "a", false],
+      ["<=", "a", "a", true],
+      ["<=", "b", "a", false],
+      [">", "b", "a", true],
+      [">", "a", "b", false],
+      [">=", "a", "a", true],
+      [">=", "a", "b", false],
+    ] as const)("%s of %p and %p is %s", (operator, lv, rv, expected) => {
+      expect(compare(lv, rv, operator)).toBe(expected);
+    });
+
+    // ISO-8601 UTC timestamps sort lexicographically identically to chronologically
+    test.each([
+      [">", "2026-06-02T00:00:00Z", "2026-06-01T12:00:00Z", true],
+      [">", "2023-11-09T15:12:26Z", "2026-06-01T12:00:00Z", false],
+      ["<", "2023-11-09T15:12:26Z", "2026-06-01T12:00:00Z", true],
+      [">=", "2026-06-01T12:00:00Z", "2026-06-01T12:00:00Z", true],
+      ["<=", "2026-06-01T12:00:00Z", "2026-06-01T12:00:00Z", true],
+    ] as const)("%s of %p and %p is %s", (operator, lv, rv, expected) => {
+      expect(compare(lv, rv, operator)).toBe(expected);
+    });
+  });
+
+  describe("mixed and non-orderable operands yield null", () => {
+    test.each([
+      ["<", 1, "2"],
+      [">", "2", 1],
+      ["<", 1, true],
+      [">", [], 1],
+      ["<", null, "a"],
+      [">", "a", null],
+    ] as const)("%s of %p and %p is null", (operator, lv, rv) => {
+      expect(compare(lv, rv, operator)).toBeNull();
+    });
+  });
+
+  describe("equality operators are unaffected", () => {
+    test("string equality", () => {
+      expect(compare("a", "a", "==")).toBe(true);
+      expect(compare("a", "b", "==")).toBe(false);
+      expect(compare("a", "b", "!=")).toBe(true);
     });
   });
 });

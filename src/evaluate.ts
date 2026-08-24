@@ -478,7 +478,11 @@ export function flatten(value: unknown): unknown[] | null {
   return isArray(value) ? value.flat() : null;
 }
 
-/** Applies a comparison operator to two values; ordering operators require both operands to be numbers. */
+/**
+ * Applies a comparison operator to two values. Ordering operators (`<`, `<=`, `>`, `>=`) require both
+ * operands to be numbers or both to be strings; strings are compared lexicographically. Any other
+ * operand combination yields `null`, matching JMESPath semantics.
+ */
 export function compare(
   lv: number,
   rv: number,
@@ -503,7 +507,10 @@ export function compare(
     case "<=":
     case ">":
     case ">=":
-      if (typeof lv === "number" && typeof rv === "number") {
+      if (
+        (typeof lv === "number" && typeof rv === "number") ||
+        (typeof lv === "string" && typeof rv === "string")
+      ) {
         switch (operator) {
           case "<":
             return lv < rv;

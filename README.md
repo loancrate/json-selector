@@ -57,10 +57,11 @@ Use `getOrThrow()`, `setOrThrow()`, and `deleteOrThrow()` when you want accessor
 
 The library fully implements the original [JMESPath specification](https://jmespath.org) and [JMESPath Community Edition](https://jmespath.site/main/), including root-node expressions (`$`), arithmetic, ternary conditionals, and lexical-scope `let` expressions. Compliance is verified against both official [JMESPath test fixtures](https://github.com/jmespath/jmespath.test) and JMESPath Community Edition fixtures.
 
-Two extensions are added:
+Three extensions are added:
 
 - **ID-based access**: `x['id']` selects the first array element whose `id` property matches — equivalent to `x[?id == 'id'] | [0]` in standard JMESPath.
 - **Bare numeric literals**: Numbers like `0`, `-1`, `3.14` can appear directly in expressions without backtick delimiters, enabling natural syntax like `foo[?price > 0]` and `a - 1`.
+- **String ordered comparison**: The ordering operators (`<`, `<=`, `>`, `>=`) compare two strings lexicographically, in addition to two numbers. Standard JMESPath returns `null` for non-numeric operands; comparing strings enables date-string filters like `loanCreationDate > '2026-06-01T12:00:00Z'`. See [Ordering](docs/language.md#ordering).
 
 Compatibility options (`strictJsonLiterals`, `rawStringBackslashEscape`, `lowNotPrecedence`, `evaluateNullMultiSelect`) control standards-compliance behavior. See the [Language Reference](docs/language.md#legacy-compatibility) for details.
 
