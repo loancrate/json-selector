@@ -526,6 +526,17 @@ describe("compare", () => {
     ] as const)("%s of %d and %d is %s", (operator, lv, rv, expected) => {
       expect(compare(lv, rv, operator)).toBe(expected);
     });
+
+    // A NaN operand (reachable via unguarded arithmetic overflow, e.g.
+    // Infinity - Infinity) makes every ordering comparison false, matching
+    // JavaScript's native operators.
+    test.each(["<", "<=", ">", ">="] as const)(
+      "%s with a NaN operand is false",
+      (operator) => {
+        expect(compare(NaN, 1, operator)).toBe(false);
+        expect(compare(1, NaN, operator)).toBe(false);
+      },
+    );
   });
 
   describe("string operands (lexicographic)", () => {

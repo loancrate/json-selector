@@ -514,7 +514,10 @@ export function compare(
       // combination falls through to null below.
       let cmp: number | undefined;
       if (typeof lv === "number" && typeof rv === "number") {
-        cmp = lv < rv ? -1 : lv > rv ? 1 : 0;
+        // NaN yields NaN here so every comparison below is false, matching
+        // JavaScript's native ordering operators (a NaN operand can arise from
+        // unguarded arithmetic overflow, e.g. Infinity - Infinity).
+        cmp = lv < rv ? -1 : lv > rv ? 1 : lv === rv ? 0 : NaN;
       } else if (typeof lv === "string" && typeof rv === "string") {
         cmp = compareCodePoints(lv, rv);
       }
