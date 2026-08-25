@@ -17,6 +17,7 @@ import type { EvaluationContext } from "./evaluation-context";
 import { getBuiltinFunctionProvider } from "./functions/builtins";
 import { callFunction } from "./functions/provider";
 import {
+  compareCodePoints,
   describeValueType,
   findId,
   getField,
@@ -478,7 +479,11 @@ export function flatten(value: unknown): unknown[] | null {
   return isArray(value) ? value.flat() : null;
 }
 
-/** Applies a comparison operator to two values; ordering operators require both operands to be numbers. */
+/**
+ * Applies a comparison operator to two values. Ordering operators (`<`, `<=`, `>`, `>=`) require both
+ * operands to be numbers or both to be strings; strings are compared lexicographically by Unicode
+ * code point. Any other operand combination yields `null`, matching JMESPath semantics.
+ */
 export function compare(
   lv: number,
   rv: number,
@@ -502,19 +507,33 @@ export function compare(
     case "<":
     case "<=":
     case ">":
-    case ">=":
+    case ">=": {
+      // Numbers compare numerically; strings compare lexicographically by
+      // Unicode code point (matching JMESPath's sort ordering, and this
+      // library's code-point-based string slicing). Any other operand
+      // combination falls through to null below.
+      let cmp: number | undefined;
       if (typeof lv === "number" && typeof rv === "number") {
+        // NaN yields NaN here so every comparison below is false, matching
+        // JavaScript's native ordering operators (a NaN operand can arise from
+        // unguarded arithmetic overflow, e.g. Infinity - Infinity).
+        cmp = lv < rv ? -1 : lv > rv ? 1 : lv === rv ? 0 : NaN;
+      } else if (typeof lv === "string" && typeof rv === "string") {
+        cmp = compareCodePoints(lv, rv);
+      }
+      if (cmp !== undefined) {
         switch (operator) {
           case "<":
-            return lv < rv;
+            return cmp < 0;
           case "<=":
-            return lv <= rv;
+            return cmp <= 0;
           case ">":
-            return lv > rv;
+            return cmp > 0;
           case ">=":
-            return lv >= rv;
+            return cmp >= 0;
         }
       }
+    }
   }
   return null;
 }

@@ -3,7 +3,13 @@ import {
   InvalidArgumentTypeError,
   InvalidArgumentValueError,
 } from "../../errors";
-import { isArray, isNonEmptyArray, isObject, NonEmptyArray } from "../../util";
+import {
+  compareCodePoints,
+  isArray,
+  isNonEmptyArray,
+  isObject,
+  NonEmptyArray,
+} from "../../util";
 import {
   ANY_ARRAY_TYPE,
   ANY_TYPE,
@@ -288,28 +294,6 @@ export function registerArrayFunctions(
       return [];
     },
   });
-}
-
-/**
- * Compare two strings by their Unicode code points, per JMESPath spec.
- * Returns a negative number if a < b, positive if a > b, or 0 if equal.
- */
-function compareCodePoints(a: string, b: string): number {
-  let ai = 0;
-  let bi = 0;
-  while (ai < a.length && bi < b.length) {
-    // Safe: loop condition guarantees both indices are in range for codePointAt.
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const acp = a.codePointAt(ai)!;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const bcp = b.codePointAt(bi)!;
-    if (acp !== bcp) {
-      return acp - bcp;
-    }
-    ai += acp > 0xffff ? 2 : 1;
-    bi += bcp > 0xffff ? 2 : 1;
-  }
-  return ai === a.length ? (bi === b.length ? 0 : -1) : 1;
 }
 
 /**

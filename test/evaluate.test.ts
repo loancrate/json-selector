@@ -1,4 +1,4 @@
-import { evaluateJsonSelector, project } from "../src/evaluate";
+import { compare, evaluateJsonSelector, project } from "../src/evaluate";
 import { getBuiltinFunctionProvider } from "../src/functions/builtins";
 import { parseJsonSelector } from "../src/parse";
 
@@ -508,6 +508,95 @@ describe("evaluate", () => {
           e: "e",
         }),
       ).toBe("e");
+    });
+  });
+});
+
+describe("compare", () => {
+  describe("number operands", () => {
+    test.each([
+      ["<", 1, 2, true],
+      ["<", 2, 1, false],
+      ["<=", 2, 2, true],
+      ["<=", 3, 2, false],
+      [">", 2, 1, true],
+      [">", 1, 2, false],
+      [">=", 2, 2, true],
+      [">=", 1, 2, false],
+    ] as const)("%s of %d and %d is %s", (operator, lv, rv, expected) => {
+      expect(compare(lv, rv, operator)).toBe(expected);
+    });
+
+    // A NaN operand (reachable via unguarded arithmetic overflow, e.g.
+    // Infinity - Infinity) makes every ordering comparison false, matching
+    // JavaScript's native operators.
+    test.each(["<", "<=", ">", ">="] as const)(
+      "%s with a NaN operand is false",
+      (operator) => {
+        expect(compare(NaN, 1, operator)).toBe(false);
+        expect(compare(1, NaN, operator)).toBe(false);
+      },
+    );
+  });
+
+  describe("string operands (lexicographic)", () => {
+    test.each([
+      ["<", "a", "b", true],
+      ["<", "b", "a", false],
+      ["<=", "a", "a", true],
+      ["<=", "b", "a", false],
+      [">", "b", "a", true],
+      [">", "a", "b", false],
+      [">=", "a", "a", true],
+      [">=", "a", "b", false],
+    ] as const)("%s of %p and %p is %s", (operator, lv, rv, expected) => {
+      expect(compare(lv, rv, operator)).toBe(expected);
+    });
+
+    // ISO-8601 UTC timestamps sort lexicographically identically to chronologically
+    test.each([
+      [">", "2026-06-02T00:00:00Z", "2026-06-01T12:00:00Z", true],
+      [">", "2023-11-09T15:12:26Z", "2026-06-01T12:00:00Z", false],
+      ["<", "2023-11-09T15:12:26Z", "2026-06-01T12:00:00Z", true],
+      [">=", "2026-06-01T12:00:00Z", "2026-06-01T12:00:00Z", true],
+      ["<=", "2026-06-01T12:00:00Z", "2026-06-01T12:00:00Z", true],
+    ] as const)("%s of %p and %p is %s", (operator, lv, rv, expected) => {
+      expect(compare(lv, rv, operator)).toBe(expected);
+    });
+
+    // Ordering is by Unicode code point, not UTF-16 code unit. A supplementary-
+    // plane character (U+10000, code point 0x10000) is greater than a BMP
+    // character (U+F000, code point 0xF000). Native JS `<` would disagree,
+    // because U+10000's leading surrogate (0xD800) sorts below 0xF000.
+    const astral = String.fromCodePoint(0x10000); // surrogate pair D800 DC00
+    const bmp = String.fromCodePoint(0xf000); // single BMP code unit
+    test("orders supplementary-plane above BMP by code point", () => {
+      expect(compare(astral, bmp, ">")).toBe(true);
+      expect(compare(astral, bmp, "<")).toBe(false);
+      expect(compare(bmp, astral, "<")).toBe(true);
+      // Guard: this is the ordering native JS `<` would produce (the wrong one).
+      expect(astral < bmp).toBe(true);
+    });
+  });
+
+  describe("mixed and non-orderable operands yield null", () => {
+    test.each([
+      ["<", 1, "2"],
+      [">", "2", 1],
+      ["<", 1, true],
+      [">", [], 1],
+      ["<", null, "a"],
+      [">", "a", null],
+    ] as const)("%s of %p and %p is null", (operator, lv, rv) => {
+      expect(compare(lv, rv, operator)).toBeNull();
+    });
+  });
+
+  describe("equality operators are unaffected", () => {
+    test("string equality", () => {
+      expect(compare("a", "a", "==")).toBe(true);
+      expect(compare("a", "b", "==")).toBe(false);
+      expect(compare("a", "b", "!=")).toBe(true);
     });
   });
 });
